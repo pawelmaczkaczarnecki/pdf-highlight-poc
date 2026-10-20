@@ -1,7 +1,13 @@
 <script lang="ts">
 	import type { Box } from './rects';
 
-	let { sentenceBoxes, wordBoxes }: { sentenceBoxes: Box[]; wordBoxes: Box[] } = $props();
+	interface Props {
+		sentenceBoxes: Box[];
+		wordBoxes: Box[];
+		outlineBoxes: Box[];
+	}
+
+	let { sentenceBoxes, wordBoxes, outlineBoxes }: Props = $props();
 
 	function boxStyle(box: Box): string {
 		return `left:${box.left}px;top:${box.top}px;width:${box.right - box.left}px;height:${box.bottom - box.top}px`;
@@ -13,6 +19,9 @@
 <div class="highlightLayer" aria-hidden="true">
 	{#each sentenceBoxes as box, i (i)}
 		<div class="box sentence" data-testid="sentence-box" style={boxStyle(box)}></div>
+	{/each}
+	{#each outlineBoxes as box, i (i)}
+		<div class="box outline" style={boxStyle(box)}></div>
 	{/each}
 	{#each wordBoxes as box, i (i)}
 		<div class="box word" data-testid="word-box" style={boxStyle(box)}></div>
@@ -37,5 +46,9 @@
 	}
 	.word {
 		background: rgb(96 165 250);
+	}
+	.outline {
+		outline: 1px solid rgb(234 88 12);
+		border-radius: 0;
 	}
 </style>

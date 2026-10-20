@@ -1,9 +1,14 @@
 <script lang="ts">
 	import 'pdfjs-dist/web/pdf_viewer.css';
-	import { TextLayer, type PDFDocumentProxy } from 'pdfjs-dist';
+	import {
+		TextLayer,
+		type PageViewport,
+		type PDFDocumentProxy,
+		type PDFPageProxy
+	} from 'pdfjs-dist';
 	import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 	import HighlightLayer from '#lib/highlight/HighlightLayer.svelte';
-	import { measureRange } from '#lib/highlight/rects.js';
+	import { measureRange, offsetAtPoint } from '#lib/highlight/rects.js';
 	import { buildPageText, type PageText } from '#lib/text/pageText.js';
 	import type { TextRange } from '#lib/text/segment.js';
 
@@ -13,16 +18,29 @@
 		scale: number;
 		sentenceRange: TextRange | null;
 		wordRange: TextRange | null;
+		/** Ranges drawn as thin outlines, e.g. every word on the page to inspect accuracy. */
+		outlineRanges: TextRange[];
 		onTextReady: (pageText: PageText) => void;
+		onTextClick: (offset: number) => void;
 	}
 
-	let { pdf, pageNumber, scale, sentenceRange, wordRange, onTextReady }: Props = $props();
+	let {
+		pdf,
+		pageNumber,
+		scale,
+		sentenceRange,
+		wordRange,
+		outlineRanges,
+		onTextReady,
+		onTextClick
+	}: Props = $props();
 
 	let pageElement: HTMLDivElement | undefined;
 	let canvas: HTMLCanvasElement;
 	let textLayerElement: HTMLDivElement;
 
 	let size = $state({ width: 0, height: 0 });
+	let totalScaleFactor = $state(1);
 	let pageText = $state<PageText | null>(null);
 	let textDivs: HTMLElement[] = [];
 	let errorMessage = $state<string | null>(null);
@@ -37,6 +55,20 @@
 			? measureRange(pageText, textDivs, pageElement, wordRange)
 			: []
 	);
+
+	const outlineBoxes = $derived(
+		pageText && pageElement
+			? outlineRanges.flatMap((range) => measureRange(pageText!, textDivs, pageElement!, range))
+			: []
+	);
+
+	function handleClick(event: MouseEvent) {
+		if (!pageText) return;
+		// A drag that selected text is not a "start reading here" click.
+		if (window.getSelection()?.isCollapsed === false) return;
+		const offset = offsetAtPoint(pageText, textDivs, event.clientX, event.clientY);
+		if (offset !== null) onTextClick(offset);
+	}
 
 	$effect(() => {
 		let cancelled = false;
@@ -67,8 +99,23 @@
 		if (isCancelled()) return;
 		const viewport = page.getViewport({ scale });
 		size = { width: Math.floor(viewport.width), height: Math.floor(viewport.height) };
+		// PDF.js sizes the text layer from this variable; it must include the page's user unit.
+		totalScaleFactor = viewport.scale * viewport.userUnit;
 
-		// Draw the canvas at the screen's pixel density so the page is sharp on HiDPI screens.
+		// Waiting for both together means a cancelled canvas render is never an unhandled rejection.
+		await Promise.all([
+			renderCanvas(page, viewport, cleanups),
+			renderTextLayer(page, viewport, cleanups, isCancelled)
+		]);
+	}
+
+	function renderCanvas(
+		page: PDFPageProxy,
+		viewport: PageViewport,
+		cleanups: Array<() => void>
+	): Promise<void> {
+		// Draw at the screen's pixel density so the page is sharp on HiDPI screens. Only the canvas
+		// bitmap is scaled; the text layer and our overlay stay in CSS pixels.
 		const pixelRatio = window.devicePixelRatio || 1;
 		canvas.width = Math.floor(viewport.width * pixelRatio);
 		canvas.height = Math.floor(viewport.height * pixelRatio);
@@ -78,9 +125,18 @@
 			transform: pixelRatio === 1 ? undefined : [pixelRatio, 0, 0, pixelRatio, 0, 0]
 		});
 		cleanups.push(() => renderTask.cancel());
+		return renderTask.promise;
+	}
 
+	async function renderTextLayer(
+		page: PDFPageProxy,
+		viewport: PageViewport,
+		cleanups: Array<() => void>,
+		isCancelled: () => boolean
+	): Promise<void> {
 		const textContent = await page.getTextContent();
 		if (isCancelled()) return;
+
 		// The text layer div has no Svelte-managed children; PDF.js owns its content.
 		// eslint-disable-next-line svelte/no-dom-manipulating
 		textLayerElement.replaceChildren();
@@ -93,24 +149,27 @@
 		await textLayer.render();
 		if (isCancelled()) return;
 
-		// textDivs[i] is the span for the i-th text item, so offsets in PageText map onto spans.
+		// textDivs[i] is the span for the i-th text item (empty items included), so offsets in
+		// PageText map onto spans by index.
 		const items = textContent.items.filter((item): item is TextItem => 'str' in item);
 		textDivs = textLayer.textDivs;
 		pageText = buildPageText(items);
 		onTextReady(pageText);
-
-		await renderTask.promise;
 	}
 </script>
 
+<!-- Clicks land on the native text layer spans; keyboard users have the reader controls. -->
+<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <div
 	bind:this={pageElement}
+	onclick={handleClick}
+	data-testid="pdf-page"
 	class="page"
-	style="width:{size.width}px;height:{size.height}px;--total-scale-factor:{scale};--scale-round-x:1px;--scale-round-y:1px"
+	style="width:{size.width}px;height:{size.height}px;--total-scale-factor:{totalScaleFactor};--scale-round-x:1px;--scale-round-y:1px"
 >
 	<canvas bind:this={canvas} style="width:{size.width}px;height:{size.height}px"></canvas>
 	<div bind:this={textLayerElement} class="textLayer"></div>
-	<HighlightLayer {sentenceBoxes} {wordBoxes} />
+	<HighlightLayer {sentenceBoxes} {wordBoxes} {outlineBoxes} />
 	{#if errorMessage}
 		<p class="error" role="alert">Could not render this page: {errorMessage}</p>
 	{/if}

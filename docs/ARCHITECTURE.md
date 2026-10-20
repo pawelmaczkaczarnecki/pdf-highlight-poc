@@ -48,4 +48,5 @@ a message in the UI instead of a blank page.
 - Zoom (optional in the brief); highlights are computed at the current scale.
 - Glyph-exact positions from the PDF operator list (see DECISIONS.md #2) — more accurate inside a
   line, but too much to build reliably in the time box.
-- Continuous multi-page scrolling, a backend, real TTS timing data.
+- Continuous multi-page scrolling, automatic reading across pages, a backend, real TTS timing data.
+- Rotated and vertical text: boxes are axis-aligned, so rotated text is not highlighted precisely.

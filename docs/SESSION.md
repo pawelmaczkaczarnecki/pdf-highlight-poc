@@ -26,6 +26,9 @@ Done:
 
 ## AI mistakes caught
 
-| What the agent did                                                                     | How it was noticed                                | Fix                 |
-| -------------------------------------------------------------------------------------- | ------------------------------------------------- | ------------------- |
-| Scaffolder wrote the local folder name (containing the company name) into package.json | Grep for the company name before the first commit | Renamed the package |
+| What the agent did                                                                                                          | How it was noticed                                       | Fix                                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Wrote "word edges off by ~1–2 px" into DECISIONS.md as a fact without measuring it                                          | Independent reviewer (second AI tool)                    | Replaced with a measured check against canvas pixels                                                |
+| First canvas accuracy test only searched for ink within 2 px of the box, so it could never report an error larger than 2 px | Mutation check: boxes shifted by 4 px, test still passed | Rewrote it to walk outwards from the word's middle to a word-sized gap; the same mutation now fails |
+| Unit test expected "[4,5]" to be two words; Intl.Segmenter keeps "4,5" as one number                                        | Test failure                                             | Fixed the expectation (the code was right)                                                          |
+| Scaffolder wrote the local folder name (containing the company name) into package.json                                      | Grep for the company name before the first commit        | Renamed the package                                                                                 |

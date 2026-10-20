@@ -1,4 +1,10 @@
-import { splitSentences, splitWords, type Sentence, type Word } from '#lib/text/segment.js';
+import {
+	splitSentences,
+	splitWords,
+	type Sentence,
+	type TextRange,
+	type Word
+} from '#lib/text/segment.js';
 import { nextSentenceStart, previousSentenceStart, wordAtOffset } from './navigation.js';
 
 const MS_PER_MINUTE = 60_000;
@@ -21,10 +27,10 @@ export class Reader {
 
 	#timer: ReturnType<typeof setTimeout> | null = null;
 
-	loadText(text: string): void {
+	loadText(text: string, hiddenSpaces: TextRange[] = []): void {
 		this.pause();
 		this.sentences = splitSentences(text);
-		this.words = splitWords(text, this.sentences);
+		this.words = splitWords(text, this.sentences, hiddenSpaces);
 		this.wordIndex = 0;
 	}
 

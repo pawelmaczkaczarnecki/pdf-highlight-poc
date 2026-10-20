@@ -25,6 +25,7 @@ export interface AccuracyReport {
 	p95Px: number;
 	within1Px: number;
 	within2Px: number;
+	maxPx: number;
 	worst: WordAccuracy[];
 }
 
@@ -152,32 +153,56 @@ export function isSpaceSeparated(text: string, range: { start: number; end: numb
 	return (before === undefined || /\s/.test(before)) && (after === undefined || /\s/.test(after));
 }
 
-export interface MeasurableWord {
+export interface ComparedWord {
 	wordIndex: number;
-	boxes: Box[];
+	textLayer: Box[];
+	glyphs: Box[];
+}
+
+export interface AccuracyComparison {
+	textLayer: AccuracyReport;
+	glyphs: AccuracyReport;
+	/** Words whose B boxes really came from glyph positions (the rest fell back to A). */
+	glyphPositionsUsed: number;
 }
 
 /**
- * Compares word boxes with the ink drawn on the canvas under them. Words split over two lines
- * (several boxes) are skipped, because each part has only one real word edge.
+ * Measures approach A (text layer) and B (glyph positions) on exactly the same words: a word
+ * counts only if it can be measured with both, so the two summaries are directly comparable.
  */
-export function measureAccuracy(
+export function compareAccuracy(
 	canvas: HTMLCanvasElement,
 	cssWidth: number,
 	totalWords: number,
-	words: MeasurableWord[]
-): AccuracyReport {
+	words: ComparedWord[]
+): AccuracyComparison {
 	const context = canvas.getContext('2d');
 	const ratio = canvas.width / cssWidth;
-	const results: WordAccuracy[] = [];
+	const textLayer: WordAccuracy[] = [];
+	const glyphs: WordAccuracy[] = [];
+	let glyphPositionsUsed = 0;
 
-	for (const { wordIndex, boxes } of words) {
-		if (!context || boxes.length !== 1) continue;
-		const errorPx = measureWord(context, ratio, boxes[0]);
-		if (errorPx !== null) results.push({ wordIndex, errorPx });
+	for (const word of words) {
+		if (!sameBoxes(word.textLayer, word.glyphs)) glyphPositionsUsed++;
+		if (!context || word.textLayer.length !== 1 || word.glyphs.length !== 1) continue;
+		const errorA = measureWord(context, ratio, word.textLayer[0]);
+		const errorB = measureWord(context, ratio, word.glyphs[0]);
+		if (errorA === null || errorB === null) continue;
+		textLayer.push({ wordIndex: word.wordIndex, errorPx: errorA });
+		glyphs.push({ wordIndex: word.wordIndex, errorPx: errorB });
 	}
 
-	return summarize(totalWords, results);
+	return {
+		textLayer: summarize(totalWords, textLayer),
+		glyphs: summarize(totalWords, glyphs),
+		glyphPositionsUsed
+	};
+}
+
+function sameBoxes(a: Box[], b: Box[]): boolean {
+	return (
+		a.length === b.length && a.every((box, i) => box.left === b[i].left && box.right === b[i].right)
+	);
 }
 
 function measureWord(context: CanvasRenderingContext2D, ratio: number, box: Box): number | null {
@@ -210,6 +235,7 @@ export function summarize(words: number, results: WordAccuracy[]): AccuracyRepor
 		p95Px: percentile(errors, 0.95),
 		within1Px: share(1),
 		within2Px: share(2),
+		maxPx: errors.length ? errors[errors.length - 1] : 0,
 		worst: [...results].sort((a, b) => b.errorPx - a.errorPx).slice(0, WORST_COUNT)
 	};
 }

@@ -45,8 +45,7 @@ a message in the UI instead of a blank page.
 
 ## Deliberately not done
 
-- Zoom (optional in the brief); highlights are computed at the current scale.
-- Glyph-exact positions from the PDF operator list (see DECISIONS.md #2) — more accurate inside a
-  line, but too much to build reliably in the time box.
+- Zoom; highlights are computed at the current scale.
+- Box height from font metrics; Type3 fonts and rotated text in the glyph replay.
 - Continuous multi-page scrolling, automatic reading across pages, a backend, real TTS timing data.
 - Rotated and vertical text: boxes are axis-aligned, so rotated text is not highlighted precisely.

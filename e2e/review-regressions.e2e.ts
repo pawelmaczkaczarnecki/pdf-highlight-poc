@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
+import { clickWordInSpan } from './helpers';
 
 test('a file opened while the sample is still loading is not replaced by the sample', async ({
 	page
@@ -106,4 +107,17 @@ test('on a narrow screen the first highlight is not hidden under the toolbar', a
 	await expect(word).toBeInViewport();
 	const toolbar = (await page.locator('header').boundingBox())!;
 	expect((await word.boundingBox())!.y).toBeGreaterThanOrEqual(toolbar.y + toolbar.height);
+});
+
+test('a word with a hidden space after a ligature is one word ("confirmation")', async ({
+	page
+}) => {
+	await page.goto('/');
+	await expect(page.getByTestId('word-box').first()).toBeInViewport();
+
+	await clickWordInSpan(page, 'rmation) of research discoveries', 'con');
+
+	await expect(page.getByTestId('announcer')).toContainText(': confirmation');
+	// One box from "con" to "rmation", not a box ending after the ligature.
+	await expect(page.getByTestId('word-box')).toHaveCount(1);
 });

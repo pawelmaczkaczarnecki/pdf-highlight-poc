@@ -1,12 +1,13 @@
 import { expect, test } from '@playwright/test';
+import { clickWordInSpan } from './helpers';
 
 test('accuracy report measures the page and its worst words can be inspected', async ({ page }) => {
 	await page.goto('/');
 	const report = page.getByTestId('accuracy-report');
-	await expect(report.getByTestId('accuracy-median')).toBeVisible();
+	await expect(report.getByTestId('accuracy-median-a')).toBeVisible();
 
-	const median = parseFloat((await report.getByTestId('accuracy-median').textContent())!);
-	const within2Px = parseFloat((await report.getByTestId('accuracy-within-2px').textContent())!);
+	const median = parseFloat((await report.getByTestId('accuracy-median-a').textContent())!);
+	const within2Px = parseFloat((await report.getByTestId('accuracy-within-2px-a').textContent())!);
 	// Thresholds from the sample PDF (median 1.0 px, 81% within 2 px on macOS Chromium), with
 	// headroom because the text layer's fallback fonts differ between operating systems.
 	expect(median).toBeLessThanOrEqual(1.5);
@@ -22,4 +23,36 @@ test('accuracy report measures the page and its worst words can be inspected', a
 	await worstWord.click();
 	await expect(status).not.toHaveText(before!);
 	await expect(page.getByTestId('word-box').first()).toBeVisible();
+});
+
+test('glyph positions (B) are measured on the same words and are at least as accurate as A', async ({
+	page
+}) => {
+	await page.goto('/');
+	const report = page.getByTestId('accuracy-report');
+	await expect(report.getByTestId('accuracy-median-b')).toBeVisible();
+	const value = async (id: string) => parseFloat((await report.getByTestId(id).textContent())!);
+
+	expect(await value('accuracy-glyph-words')).toBeGreaterThan(500);
+	expect(await value('accuracy-median-b')).toBeLessThanOrEqual(await value('accuracy-median-a'));
+	expect(await value('accuracy-within-2px-b')).toBeGreaterThanOrEqual(
+		await value('accuracy-within-2px-a')
+	);
+	expect(await value('accuracy-max-b')).toBeLessThanOrEqual(await value('accuracy-max-a'));
+});
+
+test('switching to text-layer positions moves the word box, and back restores it', async ({
+	page
+}) => {
+	await page.goto('/');
+	await expect(page.getByTestId('position-source')).toHaveValue('glyphs');
+	await clickWordInSpan(page, 'controversy is seen across the', 'range');
+	const box = () => page.getByTestId('word-box').first().boundingBox();
+	const glyphBox = await box();
+
+	await page.getByTestId('position-source').selectOption('text-layer');
+	await expect.poll(async () => (await box())!.x).not.toBe(glyphBox!.x);
+
+	await page.getByTestId('position-source').selectOption('glyphs');
+	await expect.poll(async () => (await box())!.x).toBe(glyphBox!.x);
 });

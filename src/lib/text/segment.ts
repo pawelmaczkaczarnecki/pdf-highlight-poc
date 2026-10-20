@@ -40,7 +40,15 @@ export function splitSentences(text: string): Sentence[] {
 	return sentences;
 }
 
-export function splitWords(text: string, sentences: Sentence[]): Word[] {
+/**
+ * @param hiddenSpaces spaces present in the text but not visible on the page (see
+ *   findHiddenSpaces); the words on both sides of one are a single word.
+ */
+export function splitWords(
+	text: string,
+	sentences: Sentence[],
+	hiddenSpaces: TextRange[] = []
+): Word[] {
 	const segmenter = new Intl.Segmenter(LOCALE, { granularity: 'word' });
 	const words: Word[] = [];
 
@@ -54,7 +62,25 @@ export function splitWords(text: string, sentences: Sentence[]): Word[] {
 		}
 	}
 
-	return joinLineBreakHyphenation(text, words);
+	return joinAcrossHiddenSpaces(joinLineBreakHyphenation(text, words), hiddenSpaces);
+}
+
+function joinAcrossHiddenSpaces(words: Word[], hiddenSpaces: TextRange[]): Word[] {
+	if (hiddenSpaces.length === 0) return words;
+	const isHidden = (start: number, end: number) =>
+		hiddenSpaces.some((space) => space.start === start && space.end === end);
+	const joined: Word[] = [];
+
+	for (const word of words) {
+		const previous = joined[joined.length - 1];
+		if (previous && isHidden(previous.end, word.start)) {
+			previous.end = word.end;
+			continue;
+		}
+		joined.push({ ...word, index: joined.length });
+	}
+
+	return joined;
 }
 
 /**

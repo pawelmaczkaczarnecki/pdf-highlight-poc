@@ -44,12 +44,20 @@ export function buildPageText(items: TextItemLike[]): PageText {
 	let text = '';
 	const itemStarts: number[] = [];
 	const itemLengths: number[] = [];
-	let previousWithText: TextItemLike | null = null;
+	// The main text of the current line: its largest item, so a small footnote marker at the end
+	// of a line is not compared with the next line as if it were body text.
+	let lineReference: TextItemLike | null = null;
 
 	for (const item of items) {
 		if (item.str.trim() !== '') {
-			if (previousWithText && isBlockBreak(previousWithText, item)) text += BLOCK_BREAK;
-			previousWithText = item;
+			if (!lineReference) {
+				lineReference = item;
+			} else if (isSameLine(lineReference, item)) {
+				if (item.height > lineReference.height) lineReference = item;
+			} else {
+				if (isBlockBreak(lineReference, item)) text += BLOCK_BREAK;
+				lineReference = item;
+			}
 		}
 		itemStarts.push(text.length);
 		itemLengths.push(item.str.length);
@@ -73,14 +81,18 @@ export function isBlockBreak(previous: TextItemLike, next: TextItemLike): boolea
 	const largerHeight = Math.max(previous.height, next.height);
 	if (smallerHeight <= 0) return false;
 
-	// Half the larger font: a raised footnote marker still counts as the same line.
-	const sameLine = Math.abs(nextY - previousY) < largerHeight / 2;
-	if (sameLine) return false;
+	if (isSameLine(previous, next)) return false;
 
 	const fontSizeChanged = largerHeight / smallerHeight > FONT_SIZE_CHANGE;
 	const movedUp = nextY > previousY; // next column, or back up to a header
 	const largeGap = previousY - nextY > largerHeight * BLOCK_GAP_IN_LINES;
 	return fontSizeChanged || movedUp || largeGap;
+}
+
+/** Half the larger font: a raised footnote marker still counts as the same line. */
+function isSameLine(a: TextItemLike, b: TextItemLike): boolean {
+	const largerHeight = Math.max(a.height, b.height);
+	return Math.abs(b.transform[5] - a.transform[5]) < largerHeight / 2;
 }
 
 export function sliceByItems(pageText: PageText, range: TextRange): ItemSlice[] {

@@ -64,3 +64,46 @@ test('Space on a focused button activates the button instead of toggling playbac
 	await expect(page.getByTestId('page-indicator')).toHaveText('Page 2 / 6');
 	await expect(page.getByRole('button', { name: 'Play' })).toBeVisible();
 });
+
+test('PDF.js helper files (image decoders, standard fonts, CJK maps) are deployed', async ({
+	request
+}) => {
+	for (const path of [
+		'/pdfjs/wasm/openjpeg.wasm',
+		'/pdfjs/standard_fonts/FoxitSerif.pfb',
+		'/pdfjs/cmaps/UniJIS-UCS2-H.bcmap'
+	]) {
+		const response = await request.get(path);
+		expect(response.status(), path).toBe(200);
+	}
+});
+
+test('the demo opens with the highlight on screen', async ({ page }) => {
+	await page.goto('/');
+	await expect(page.getByTestId('word-box').first()).toBeInViewport();
+});
+
+test('the view follows the highlight when it moves off screen', async ({ page }) => {
+	await page.goto('/');
+	await expect(page.getByTestId('word-box').first()).toBeInViewport();
+
+	// Jump far ahead in the text, past what fits on the screen.
+	for (let i = 0; i < 20; i++) await page.keyboard.press('Shift+ArrowRight');
+
+	const word = page.getByTestId('word-box').first();
+	await expect(word).toBeInViewport();
+	// Not hidden under the sticky toolbar either.
+	const toolbarBottom = (await page.locator('header').boundingBox())!;
+	expect((await word.boundingBox())!.y).toBeGreaterThanOrEqual(
+		toolbarBottom.y + toolbarBottom.height
+	);
+});
+
+test('on a narrow screen the first highlight is not hidden under the toolbar', async ({ page }) => {
+	await page.setViewportSize({ width: 412, height: 660 });
+	await page.goto('/');
+	const word = page.getByTestId('word-box').first();
+	await expect(word).toBeInViewport();
+	const toolbar = (await page.locator('header').boundingBox())!;
+	expect((await word.boundingBox())!.y).toBeGreaterThanOrEqual(toolbar.y + toolbar.height);
+});

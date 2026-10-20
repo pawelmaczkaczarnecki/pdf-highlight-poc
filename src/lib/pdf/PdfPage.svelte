@@ -146,7 +146,9 @@
 		cleanups: Array<() => void>,
 		isCancelled: () => boolean
 	): Promise<void> {
-		const textContent = await page.getTextContent();
+		// Without normalization a ligature stays one character ("ﬁ"), which keeps the text
+		// aligned 1:1 with the glyphs PDF.js draws.
+		const textContent = await page.getTextContent({ disableNormalization: true });
 		if (isCancelled()) return;
 
 		// The text layer div has no Svelte-managed children; PDF.js owns its content.

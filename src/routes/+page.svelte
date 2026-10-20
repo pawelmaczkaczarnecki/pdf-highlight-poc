@@ -30,6 +30,16 @@
 	let accuracy = $state<AccuracyReport | null>(null);
 
 	const outlineRanges = $derived(showAllWords ? reader.words : []);
+	/**
+	 * What a screen reader hears. During playback it stays "Playing" instead of announcing every
+	 * word several times a second; on pause and manual navigation it names the current word.
+	 */
+	const announcement = $derived.by(() => {
+		if (reader.playing) return 'Playing';
+		if (!reader.currentWord) return '';
+		const position = `word ${reader.wordIndex + 1} of ${reader.words.length}`;
+		return `Paused at ${position}: ${wordText(reader.wordIndex)}`;
+	});
 
 	// Only the latest "open" counts: an older file that finishes loading later is thrown away.
 	let latestOpenRequest = 0;
@@ -42,6 +52,7 @@
 		const isStale = () => request !== latestOpenRequest;
 		reader.clear();
 		accuracy = null;
+		pageText = null;
 		loadError = null;
 
 		try {
@@ -72,6 +83,7 @@
 		if (!pdf || next < 1 || next > pdf.numPages) return;
 		reader.clear();
 		accuracy = null;
+		pageText = null;
 		pageNumber = next;
 	}
 
@@ -92,7 +104,9 @@
 
 	function wordText(wordIndex: number): string {
 		const word = reader.words[wordIndex];
-		return word && pageText ? pageText.text.slice(word.start, word.end) : '';
+		if (!word || !pageText) return '';
+		// A word hyphenated across lines contains "-⏎"; show it as written on one line.
+		return pageText.text.slice(word.start, word.end).replace('-\n', '-');
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
@@ -148,7 +162,8 @@
 			>
 		</nav>
 
-		<div class="flex items-center gap-1" role="group" aria-label="Reading">
+		<!-- Wraps on narrow screens, so the speed control moves to its own row instead of overflowing. -->
+		<div class="flex flex-wrap items-center gap-1" role="group" aria-label="Reading">
 			<button
 				class={CONTROL}
 				onclick={() => reader.previousSentence()}
@@ -185,7 +200,11 @@
 			>
 			<label class="ml-2 flex items-center gap-1">
 				<span>Speed</span>
-				<select bind:value={reader.wordsPerMinute} class="rounded border border-slate-300 px-1">
+				<select
+					value={reader.wordsPerMinute}
+					onchange={(event) => reader.setWordsPerMinute(Number(event.currentTarget.value))}
+					class="rounded border border-slate-300 px-1"
+				>
 					{#each SPEEDS as speed (speed)}
 						<option value={speed}>{speed} wpm</option>
 					{/each}
@@ -199,16 +218,19 @@
 		</label>
 	</header>
 
-	<p class="px-4 pt-2 text-xs text-slate-500" aria-live="polite" data-testid="reading-status">
+	<p class="px-4 pt-2 text-xs text-slate-500" data-testid="reading-status">
 		{fileName} ·
-		{#if reader.words.length}
+		{#if !pageText}
+			loading page…
+		{:else if reader.words.length === 0}
+			No selectable text on this page (scanned pages without a text layer are not supported).
+		{:else}
 			word {reader.wordIndex + 1} of {reader.words.length}, sentence
 			{(reader.currentWord?.sentenceIndex ?? 0) + 1} of {reader.sentences.length} · click a word to start
 			there · Space play/pause · ←/→ word · Shift+←/→ sentence
-		{:else}
-			no text on this page yet
 		{/if}
 	</p>
+	<p class="sr-only" aria-live="polite" data-testid="announcer">{announcement}</p>
 
 	{#if pdf && !loadError}
 		<AccuracyPanel
@@ -218,23 +240,26 @@
 		/>
 	{/if}
 
-	<main class="flex justify-center p-4">
-		{#if loadError}
-			<p role="alert" class="text-red-700">{loadError}</p>
-		{:else if pdf}
-			<PdfPage
-				{pdf}
-				{pageNumber}
-				scale={SCALE}
-				sentenceRange={reader.currentSentence}
-				wordRange={reader.currentWord}
-				{outlineRanges}
-				onTextReady={handleTextReady}
-				onTextClick={(offset) => reader.goToOffset(offset)}
-				onRendered={handleRendered}
-			/>
-		{:else}
-			<p>Loading…</p>
-		{/if}
+	<!-- Only the document scrolls sideways on narrow screens; the controls keep the screen width. -->
+	<main class="overflow-x-auto p-4">
+		<div class="mx-auto w-fit">
+			{#if loadError}
+				<p role="alert" class="text-red-700">{loadError}</p>
+			{:else if pdf}
+				<PdfPage
+					{pdf}
+					{pageNumber}
+					scale={SCALE}
+					sentenceRange={reader.currentSentence}
+					wordRange={reader.currentWord}
+					{outlineRanges}
+					onTextReady={handleTextReady}
+					onTextClick={(offset) => reader.goToOffset(offset)}
+					onRendered={handleRendered}
+				/>
+			{:else}
+				<p>Loading…</p>
+			{/if}
+		</div>
 	</main>
 </div>

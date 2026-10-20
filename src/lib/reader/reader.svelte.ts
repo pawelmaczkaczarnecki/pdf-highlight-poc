@@ -48,6 +48,12 @@ export class Reader {
 		this.#timer = null;
 	}
 
+	setWordsPerMinute(wordsPerMinute: number): void {
+		this.wordsPerMinute = wordsPerMinute;
+		// The step already waiting was timed for the old speed; start it again at the new one.
+		if (this.playing) this.#scheduleNextWord();
+	}
+
 	togglePlay(): void {
 		if (this.playing) this.pause();
 		else this.play();

@@ -15,6 +15,10 @@ export interface Word extends TextRange {
 
 const LOCALE = 'en';
 
+/** What separates the two halves of a word broken at the end of a line: a hyphen, then the line break. */
+const LINE_END_HYPHEN = '-\n';
+const STARTS_LOWERCASE = /^\p{Ll}/u;
+
 /**
  * Line breaks from the PDF are not sentence breaks, but Intl.Segmenter treats them as such.
  * Replacing them with spaces keeps every character offset unchanged.
@@ -50,7 +54,34 @@ export function splitWords(text: string, sentences: Sentence[]): Word[] {
 		}
 	}
 
-	return words;
+	return joinLineBreakHyphenation(text, words);
+}
+
+/**
+ * A word broken at the end of a line ("dispro-⏎portionately", or the compound "post-⏎study") is
+ * one word to highlight, with a box on each line. Whether the hyphen is spoken (compound) or
+ * dropped (syllable break) needs a dictionary, so that is left to the speech side.
+ * A capitalised second half ("Kaplan-⏎Meier") is left as two words.
+ */
+function joinLineBreakHyphenation(text: string, words: Word[]): Word[] {
+	const joined: Word[] = [];
+
+	for (const word of words) {
+		const previous = joined[joined.length - 1];
+		const isSecondHalf =
+			previous !== undefined &&
+			previous.sentenceIndex === word.sentenceIndex &&
+			text.slice(previous.end, word.start) === LINE_END_HYPHEN &&
+			STARTS_LOWERCASE.test(text.slice(word.start, word.end));
+
+		if (isSecondHalf) {
+			previous.end = word.end;
+			continue;
+		}
+		joined.push({ ...word, index: joined.length });
+	}
+
+	return joined;
 }
 
 /** Shrinks a range so it does not start or end with whitespace; null if nothing is left. */

@@ -118,12 +118,20 @@ on Linux, and the tests fail if boxes are shifted or shrunk by 3 px.
 - A TTS service with word timestamps (e.g. a cloud voice behind a small server) instead of
   estimated timing for voices that report none.
 
+## History of this repository
+
+Before submission, I reorganized the development history into seven thematic pull requests to
+make the implementation easier to review. Their creation dates reflect that cleanup. The
+development iterations, changed decisions, and issues found during review are documented in
+[docs/DECISIONS.md](docs/DECISIONS.md) ("How decisions changed along the way") and
+[docs/DEVELOPMENT_LOG.md](docs/DEVELOPMENT_LOG.md).
+
 ## How AI was used
 
 Built with Claude Code as the main pair programmer and ChatGPT (Sol 6.1) and Astra as independent
 reviewers. I decided the stack, scope and trade-offs (e.g. measured accuracy over extra features,
-no automatic page advance); the agent proposed options and implemented. Work went through small
-PRs, each with how it was verified; the scaffold and first vertical slice went straight to `main`.
+no automatic page advance); the agent proposed options and implemented. During development
+work went through small PRs, each with how it was verified (see "History of this repository").
 
 Verification: unit tests for pure logic, Playwright on the production build, mutation checks for
 the key guarantees (shifting or shrinking boxes by 3 px must fail the accuracy test), several rounds

@@ -72,10 +72,10 @@ export function wordAtSpokenOffset(spoken: SpokenSentence, charIndex: number): n
 }
 
 /**
- * Whether a word event can drive the highlight. Some engines report every word as the whole
- * utterance (position 0, full length). A real word event is about as long as the word it points
- * at (punctuation may be included), so an event much longer than that word carries no position.
- * A long single word ("Supercalifragilisticexpialidocious") is therefore still accepted.
+ * Whether a word event can drive the highlight. A real word event ends with its word (closing
+ * punctuation included); some engines instead report every word as the whole utterance
+ * (position 0, full length). So an event that reaches into the next word carries no position.
+ * A long single word ("Supercalifragilisticexpialidocious a.") is still accepted.
  */
 export function isUsableWordEvent(
 	spoken: SpokenSentence,
@@ -83,16 +83,13 @@ export function isUsableWordEvent(
 	charLength: number
 ): boolean {
 	if (charLength <= 0) return true; // engines that report no length
-	const word =
-		spoken.words.find((w) => charIndex >= w.start && charIndex < w.end) ??
-		spoken.words.find((w) => w.start > charIndex);
-	if (!word) return false;
-	const expectedLength = word.end - charIndex;
-	return charLength <= expectedLength * 2 + PUNCTUATION_SLACK;
+	const next = spoken.words.find((w) => w.start > charIndex);
+	if (!next) return true; // the last word may run to the end of the utterance
+	const word = spoken.words.find((w) => charIndex >= w.start && charIndex < w.end);
+	// An event starting at punctuation (the "[" of "[9–11]") belongs to the next word.
+	const nextAfterWord = word ? next : spoken.words.find((w) => w.start > next.start);
+	return !nextAfterWord || charIndex + charLength <= nextAfterWord.start;
 }
-
-/** Characters a voice may include around a word (brackets, closing punctuation). */
-const PUNCTUATION_SLACK = 4;
 
 export function speechRate(wordsPerMinute: number): number {
 	return Math.min(2, Math.max(0.5, wordsPerMinute / WORDS_PER_MINUTE_AT_RATE_1));

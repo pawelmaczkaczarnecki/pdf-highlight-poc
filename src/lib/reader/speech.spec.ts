@@ -79,6 +79,14 @@ describe('isUsableWordEvent', () => {
 		expect(isUsableWordEvent(spoken, 35, 1)).toBe(true);
 	});
 
+	it('rejects an event that covers a whole short sentence ("Hello world.")', () => {
+		const text = 'Hello world.';
+		const spoken = spokenSentenceFrom(text, splitWords(text, splitSentences(text)), 0);
+		expect(isUsableWordEvent(spoken, 0, 12)).toBe(false);
+		expect(isUsableWordEvent(spoken, 0, 5)).toBe(true);
+		expect(isUsableWordEvent(spoken, 6, 6)).toBe(true); // "world." with its full stop
+	});
+
 	it('rejects an event that claims the whole utterance is the first word', () => {
 		const spoken = spokenSentenceFrom(pageText, words, 0);
 		expect(isUsableWordEvent(spoken, 0, spoken.text.length)).toBe(false);

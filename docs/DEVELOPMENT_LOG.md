@@ -14,7 +14,8 @@
 
 ## Progress
 
-Done (from the third step on, each change went through a PR describing how it was verified):
+Done (during development each change went through a pull request describing how it was
+verified; before submission the history was reorganized into seven thematic pull requests):
 
 - Skeleton: SvelteKit + TS + Tailwind + Vitest + Playwright + adapter-static, pdfjs-dist 6.4.299.
 - Vertical slice: sample PDF → canvas + text layer + overlay → sentence and word highlighted.
@@ -45,6 +46,7 @@ Done (from the third step on, each change went through a PR describing how it wa
 
 | What the agent did                                                                                                                                                                                                                                     | How it was noticed                                                           | Fix                                                                                                            |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Accepted a word event covering a whole two-word sentence ("Hello world."): the length rule was too lenient for short sentences                                                                                                                         | Independent review (Codex) with a scripted engine                            | An event may not reach into the next word                                                                      |
 | Header/footer bands compared absolute text positions with the size of a cropped page, so a page cropped to an area not starting at 0 had "no selectable text"                                                                                          | Independent review (Codex) with a cropped test PDF                           | Bands measured from the visible area's bottom edge; e2e for cropped and uncropped pages                        |
 | No handler for speech errors after speaking started: the app stayed "Playing" on one word                                                                                                                                                              | Independent review (Codex)                                                   | Error ends reading aloud with a message and continues silently; e2e with a scripted fake engine                |
 | Treated any word event covering 90% of the utterance as broken, which rejected a correct event for a long single word                                                                                                                                  | Independent review (Codex)                                                   | Compare the event length with the word it points at                                                            |

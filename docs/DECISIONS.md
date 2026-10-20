@@ -99,8 +99,8 @@ Each decision: what was chosen, why, what else was considered, and what it costs
   system has no voice of its own.
 - **When word events are missing or wrong:** if no usable word event arrives shortly after the
   voice starts, words inside the sentence follow an estimated pace (re-measured after each
-  sentence) while every sentence still starts with the voice. An event much longer than the word
-  it points at is treated as unusable (the macOS engine reports every word as the whole sentence
+  sentence) while every sentence still starts with the voice. An event that reaches into the next word is
+  treated as unusable (the macOS engine reports every word as the whole sentence
   when the text contains the minus sign U+2212, so "−" is spoken as "-", which keeps offsets).
 - **When speech fails:** a speech error ends reading aloud with a message and reading continues
   silently from the current word; if speech does not start within 3 s, the same happens.

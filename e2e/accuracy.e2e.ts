@@ -11,8 +11,8 @@ test('accuracy report measures the page and its worst words can be inspected', a
 	// headroom because the text layer's fallback fonts differ between operating systems.
 	expect(median).toBeLessThanOrEqual(1.5);
 	expect(within2Px).toBeGreaterThanOrEqual(70);
-	// Boxes that do not line up with word spaces are "not measured" rather than counted as good,
-	// so a broken layout shows up as a low measured count.
+	// Boxes that do not line up with word spaces are "not measured" rather than counted as good;
+	// make sure most words are still measured, so the median is based on a large sample.
 	const measured = Number(await report.getByTestId('accuracy-measured').textContent());
 	expect(measured).toBeGreaterThanOrEqual(600);
 

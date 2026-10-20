@@ -69,7 +69,13 @@ test('rapid page changes end on the last requested page without errors', async (
 	for (let i = 0; i < 4; i++) await next.click();
 
 	await expect(page.getByTestId('page-indicator')).toHaveText('Page 5 / 6');
-	await expect(page.getByTestId('word-box')).toHaveCount(1);
+	// The text layer must be page 5's text (its page number in the footer)…
+	await expect(page.locator('.textLayer')).toContainText('0700');
+	// …and the canvas must show the same page: the accuracy check compares boxes from the text
+	// layer with ink on the canvas, so boxes over another page's ink give a large median error.
+	const median = page.getByTestId('accuracy-median');
+	await expect(median).toBeVisible();
+	expect(parseFloat((await median.textContent())!)).toBeLessThanOrEqual(1.5);
 	expect(errors).toEqual([]);
 });
 
@@ -78,6 +84,6 @@ test('"Show all word boxes" outlines every word on the page', async ({ page }) =
 		(await page.getByTestId('reading-status').textContent())!.match(/word \d+ of (\d+)/)![1]
 	);
 	await page.getByLabel('Show all word boxes').check();
-	// A word split across two lines (hyphenation) has two boxes, so at least one per word.
+	// A word hyphenated across two lines has a box on each line, so at least one box per word.
 	expect(await page.locator('.highlightLayer .outline').count()).toBeGreaterThanOrEqual(total);
 });

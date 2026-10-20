@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { clickWordInSpan } from './helpers';
 
 test('a file opened while the sample is still loading is not replaced by the sample', async ({
@@ -121,3 +121,38 @@ test('a word with a hidden space after a ligature is one word ("confirmation")',
 	// One box from "con" to "rmation", not a box ending after the ligature.
 	await expect(page.getByTestId('word-box')).toHaveCount(1);
 });
+
+/** A one-page PDF with one sentence; `box` is the media box, `crop` the visible area. */
+function pdfWithSentence(box: string, crop: string, y: number): Buffer {
+	const content = `BT /F1 12 Tf 100 ${y} Td (Visible body sentence.) Tj ET`;
+	return Buffer.from(
+		'%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n' +
+			'2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n' +
+			`3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[${box}]/CropBox[${crop}]` +
+			'/Resources<</Font<</F1 5 0 R>>>>/Contents 4 0 R>>endobj\n' +
+			`4 0 obj<</Length ${content.length}>>stream\n${content}\nendstream endobj\n` +
+			'5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n' +
+			'trailer<</Root 1 0 R>>\n%%EOF\n'
+	);
+}
+
+for (const [name, box, crop, y] of [
+	['an uncropped page', '0 0 600 300', '0 0 600 300', 150],
+	['a page cropped to its upper half', '0 0 600 600', '0 300 600 600', 450]
+] as const) {
+	test(`text in the middle of ${name} is read, not taken for a header or footer`, async ({
+		page
+	}) => {
+		await page.goto('/');
+		await expect(page.getByTestId('word-box').first()).toBeVisible();
+		await page.locator('input[type="file"]').setInputFiles({
+			name: 'one-sentence.pdf',
+			mimeType: 'application/pdf',
+			buffer: pdfWithSentence(box, crop, y)
+		});
+
+		await expect(page.getByTestId('reading-status')).toContainText('word 1 of 3');
+		await expect(page.getByRole('button', { name: 'Play' })).toBeEnabled();
+		await expect(page.getByTestId('word-box')).toBeVisible();
+	});
+}

@@ -39,16 +39,17 @@
 	}
 	.box {
 		position: absolute;
-		border-radius: 2px;
+		border-radius: 3px;
 	}
 	.sentence {
-		background: rgb(191 219 254);
+		background: rgb(186 230 253 / 0.85); /* sky-200 */
 	}
 	.word {
-		background: rgb(96 165 250);
+		background: rgb(56 189 248 / 0.75); /* sky-400 */
+		box-shadow: 0 0 0 1px rgb(14 165 233 / 0.5);
 	}
 	.outline {
-		outline: 1px solid rgb(234 88 12);
+		outline: 1px solid rgb(99 102 241 / 0.75); /* indigo-500 */
 		border-radius: 0;
 	}
 </style>

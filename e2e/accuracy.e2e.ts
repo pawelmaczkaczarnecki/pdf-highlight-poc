@@ -1,12 +1,16 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test('accuracy report measures the page and its worst words can be inspected', async ({ page }) => {
 	await page.goto('/');
 	const report = page.getByTestId('accuracy-report');
-	await expect(report.getByTestId('accuracy-median-a')).toBeVisible();
+	await expect(report.getByTestId('accuracy-median-text-layer')).toBeVisible();
 
-	const median = parseFloat((await report.getByTestId('accuracy-median-a').textContent())!);
-	const within2Px = parseFloat((await report.getByTestId('accuracy-within-2px-a').textContent())!);
+	const median = parseFloat(
+		(await report.getByTestId('accuracy-median-text-layer').textContent())!
+	);
+	const within2Px = parseFloat(
+		(await report.getByTestId('accuracy-within-2px-text-layer').textContent())!
+	);
 	// Thresholds from the sample PDF (median 1.0 px, 81% within 2 px on macOS Chromium), with
 	// headroom because the text layer's fallback fonts differ between operating systems.
 	expect(median).toBeLessThanOrEqual(1.5);
@@ -24,18 +28,22 @@ test('accuracy report measures the page and its worst words can be inspected', a
 	await expect(page.getByTestId('word-box').first()).toBeVisible();
 });
 
-test('glyph positions (B) are measured on the same words and are at least as accurate as A', async ({
+test('glyph-position boxes are at least as accurate as text-layer boxes on the same words', async ({
 	page
 }) => {
 	await page.goto('/');
 	const report = page.getByTestId('accuracy-report');
-	await expect(report.getByTestId('accuracy-median-b')).toBeVisible();
+	await expect(report.getByTestId('accuracy-median-glyphs')).toBeVisible();
 	const value = async (id: string) => parseFloat((await report.getByTestId(id).textContent())!);
 
 	expect(await value('accuracy-glyph-words')).toBeGreaterThan(500);
-	expect(await value('accuracy-median-b')).toBeLessThanOrEqual(await value('accuracy-median-a'));
-	expect(await value('accuracy-within-2px-b')).toBeGreaterThanOrEqual(
-		await value('accuracy-within-2px-a')
+	expect(await value('accuracy-median-glyphs')).toBeLessThanOrEqual(
+		await value('accuracy-median-text-layer')
 	);
-	expect(await value('accuracy-max-b')).toBeLessThanOrEqual(await value('accuracy-max-a'));
+	expect(await value('accuracy-within-2px-glyphs')).toBeGreaterThanOrEqual(
+		await value('accuracy-within-2px-text-layer')
+	);
+	expect(await value('accuracy-max-glyphs')).toBeLessThanOrEqual(
+		await value('accuracy-max-text-layer')
+	);
 });

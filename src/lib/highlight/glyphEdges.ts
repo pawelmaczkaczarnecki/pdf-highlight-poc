@@ -9,7 +9,7 @@ export interface GlyphEdge {
 }
 
 /**
- * Approach B: keep the text-layer boxes' vertical extent (one per line), but take their left and
+ * Keeps the text-layer boxes' vertical extent (one per line), but take their left and
  * right edges from the glyph positions in the PDF instead of the browser's fallback font.
  * Falls back to the text-layer boxes unchanged when any character of the range has no trusted
  * glyph position, or a line cannot be matched to glyphs.

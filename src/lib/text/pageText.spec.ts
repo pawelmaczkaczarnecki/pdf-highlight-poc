@@ -151,3 +151,23 @@ describe('buildPageText reading order', () => {
 		expect(pageText.blocks.every((b) => !b.isPageFurniture)).toBe(true);
 	});
 });
+
+describe('buildPageText on a cropped page', () => {
+	it('classifies text by its place in the visible area, not by absolute coordinates', () => {
+		const body = (y: number) => [item('Visible body sentence.', 100, y, 12, true)];
+		const uncropped = buildPageText(body(150), { width: 600, height: 300 });
+		// Same page cropped from a 600×600 media box: the visible area starts at y = 300.
+		const cropped = buildPageText(body(450), { width: 600, height: 300, bottom: 300 });
+
+		expect(uncropped.blocks.every((b) => !b.isPageFurniture)).toBe(true);
+		expect(cropped.blocks.every((b) => !b.isPageFurniture)).toBe(true);
+	});
+
+	it('still finds a footer at the bottom of a cropped page', () => {
+		const pageText = buildPageText(
+			[item('Body text here.', 100, 450, 12, true), item('Page 3', 100, 305, 8, true)],
+			{ width: 600, height: 300, bottom: 300 }
+		);
+		expect(pageText.blocks.map((b) => b.isPageFurniture)).toEqual([false, true]);
+	});
+});

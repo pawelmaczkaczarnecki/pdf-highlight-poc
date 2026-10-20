@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { splitSentences, splitWords } from './segment';
+import { joinConnectedWords, splitSentences, splitWords, type Word } from './segment';
 
 function textsOf(text: string, ranges: { start: number; end: number }[]): string[] {
 	return ranges.map((range) => text.slice(range.start, range.end));
@@ -103,11 +103,80 @@ describe('splitWords with words hyphenated across lines', () => {
 		expect(wordsOf('The Kaplan-\nMeier curve.')).toEqual(['The', 'Kaplan', 'Meier', 'curve']);
 	});
 
-	it('leaves a hyphen inside a line alone', () => {
-		expect(wordsOf('A well-known fact.')).toEqual(['A', 'well', 'known', 'fact']);
+	it('keeps a hyphenated compound inside a line as one word, as a voice reads it', () => {
+		expect(wordsOf('A Frontend-focused, well-known Kaplan-Meier fact.')).toEqual([
+			'A',
+			'Frontend-focused',
+			'well-known',
+			'Kaplan-Meier',
+			'fact'
+		]);
+	});
+
+	it('keeps a range written with an en dash as one word, as a voice reads it ("9–11")', () => {
+		expect(wordsOf('Pages 10–20 and refs [9–11].')).toEqual([
+			'Pages',
+			'10–20',
+			'and',
+			'refs',
+			'9–11'
+		]);
+	});
+
+	it('does not join across dashes with spaces or an em dash', () => {
+		expect(wordsOf('Ten – twenty, see—above.')).toEqual(['Ten', 'twenty', 'see', 'above']);
 	});
 
 	it('does not join across a dash with a space before it', () => {
 		expect(wordsOf('It ends -\nnext part.')).toEqual(['It', 'ends', 'next', 'part']);
+	});
+});
+
+describe('joinConnectedWords', () => {
+	// Word parts as Chrome's segmenter returns them: it splits at "." "@" and "/".
+	function parts(text: string, pieces: string[]): Word[] {
+		let from = 0;
+		return pieces.map((piece, index) => {
+			const start = text.indexOf(piece, from);
+			from = start + piece.length;
+			return { index, sentenceIndex: 0, start, end: from };
+		});
+	}
+
+	it('joins domains, e-mails and URLs that the browser split into parts', () => {
+		const text = 'At piano.io, mail jane@example.com or see linkedin.com/in/jane-doe now.';
+		const words = parts(text, [
+			'At',
+			'piano',
+			'io',
+			'mail',
+			'jane',
+			'example',
+			'com',
+			'or',
+			'see',
+			'linkedin',
+			'com',
+			'in',
+			'jane',
+			'doe',
+			'now'
+		]);
+		expect(joinConnectedWords(text, words).map((w) => text.slice(w.start, w.end))).toEqual([
+			'At',
+			'piano.io',
+			'mail',
+			'jane@example.com',
+			'or',
+			'see',
+			'linkedin.com/in/jane-doe',
+			'now'
+		]);
+	});
+
+	it('does not join across punctuation with a space or a comma inside a list', () => {
+		const text = 'Done. Next, items [4,5].';
+		const words = parts(text, ['Done', 'Next', 'items', '4', '5']);
+		expect(joinConnectedWords(text, words)).toHaveLength(5);
 	});
 });

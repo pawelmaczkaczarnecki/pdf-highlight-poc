@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 /** A one-page PDF with no text at all, like a scanned page without OCR. */
 const PDF_WITHOUT_TEXT = Buffer.from(
@@ -60,4 +60,12 @@ test('on a narrow screen only the PDF area scrolls sideways, not the controls', 
 			.map((group) => group.getAttribute('aria-label') ?? group.textContent!.trim().slice(0, 20));
 	});
 	expect(overflowing).toEqual([]);
+});
+
+test('without a speech engine the reader stays silent and still plays', async ({ page }) => {
+	await page.goto('/');
+	expect(await page.evaluate(() => window.speechSynthesis === undefined)).toBe(true);
+	await expect(page.getByTestId('voice')).toHaveValue('silent');
+	await page.getByRole('button', { name: 'Play' }).click();
+	await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
 });

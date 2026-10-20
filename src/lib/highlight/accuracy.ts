@@ -195,7 +195,7 @@ export interface AccuracyComparison {
 }
 
 /**
- * Measures approach A (text layer) and B (glyph positions) on exactly the same words: a word
+ * Measures text-layer boxes (the baseline) and glyph-position boxes on exactly the same words: a word
  * counts only if it can be measured with both, so the two summaries are directly comparable.
  */
 export function compareAccuracy(

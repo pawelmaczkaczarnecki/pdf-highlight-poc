@@ -50,12 +50,12 @@
 	let totalScaleFactor = $state(1);
 	let pageText = $state<PageText | null>(null);
 	let textDivs: HTMLElement[] = [];
-	/** Approach B: glyph edge of each character of the page text, or null where untrusted. */
+	/** Glyph edge of each character of the page text, or null where untrusted. */
 	let glyphEdgeAt: (offset: number) => GlyphEdge | null = () => null;
 	let errorMessage = $state<string | null>(null);
 
-	// Highlights use glyph positions (B); the text-layer-only boxes (A) are measured for the
-	// accuracy report's baseline and are the fallback inside B.
+	// Highlights use glyph positions; text-layer-only boxes are the fallback for untrusted glyphs
+	// and the accuracy report's baseline.
 	const sentenceBoxes = $derived(sentenceRange ? measure(sentenceRange, 'glyphs') : []);
 	const wordBoxes = $derived(wordRange ? measure(wordRange, 'glyphs') : []);
 
@@ -123,7 +123,7 @@
 	/**
 	 * Reads glyph positions from the page's drawing instructions: spaces in the extracted text
 	 * that are not visible on the page (e.g. after a ligature), and each character's left/right
-	 * edge for approach B. Best effort: on any problem, no hidden spaces and B falls back to A.
+	 * edge. Best effort: on any problem, no hidden spaces and the text-layer edges are used.
 	 */
 	async function analyzeGlyphs(
 		page: PDFPageProxy,
@@ -202,7 +202,7 @@
 		const items = textContent.items.filter((item): item is TextItem => 'str' in item);
 		textDivs = textLayer.textDivs;
 		const [left, bottom, right, top] = page.view;
-		const builtText = buildPageText(items, { width: right - left, height: top - bottom });
+		const builtText = buildPageText(items, { width: right - left, height: top - bottom, bottom });
 		const { hiddenSpaces, edgeAt } = await analyzeGlyphs(page, viewport, builtText.text);
 		if (isCancelled()) return;
 		glyphEdgeAt = edgeAt;
@@ -232,7 +232,19 @@
 	.page {
 		position: relative;
 		background: white;
-		box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
+		border-radius: 2px;
+		box-shadow:
+			0 1px 2px rgb(15 23 42 / 0.06),
+			0 12px 32px -8px rgb(15 23 42 / 0.25);
+		outline: 1px solid rgb(15 23 42 / 0.06);
+	}
+	/* Over text: a pointer with a small "play" badge — clicking a word starts reading there.
+	   Beats PDF.js's own text cursor (its selector is less specific). */
+	.page :global(.textLayer span) {
+		cursor:
+			url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cpath d='M4 3v19l5-5 3.5 8 3-1.3L12 16h7z' fill='white' stroke='%230f172a' stroke-width='1.5' stroke-linejoin='round'/%3E%3Ccircle cx='23' cy='23' r='7' fill='%230284c7' stroke='white' stroke-width='1.5'/%3E%3Cpath d='M21 19.8l5 3.2-5 3.2z' fill='white'/%3E%3C/svg%3E")
+				4 3,
+			pointer;
 	}
 	canvas {
 		position: absolute;

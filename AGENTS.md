@@ -7,17 +7,21 @@ word highlights (text-to-speech style) in a custom overlay layer above the nativ
 
 ## Structure
 
-- `src/lib/pdf/` — pdfjs-dist setup (worker) and the page component (canvas + text layer + overlay).
-- `src/lib/text/` — page text model and sentence/word segmentation. Pure functions, no DOM.
-- `src/lib/highlight/` — turning a character range into overlay rectangles, and the overlay component.
-- `src/lib/reader/` — reading position and playback (which sentence/word is current).
-- `src/routes/` — the demo page: file picker, page navigation, playback controls.
-- `static/` — the bundled sample PDF.
+- `src/lib/pdf/` — pdfjs-dist setup, the page component (canvas + text layer + overlay) and the
+  replay of the PDF's drawing instructions (glyph positions).
+- `src/lib/text/` — page text model (blocks, reading order data) and sentence/word segmentation.
+- `src/lib/highlight/` — character range → boxes, glyph edges, the accuracy metric, their components.
+- `src/lib/reader/` — reading position, playback (voice or timer), reading order, navigation.
+- `src/lib/ui/` — small presentational pieces (icons).
+- `src/routes/` — the app page: toolbar, status, accuracy card.
+- `e2e/` — Playwright tests; `fixtures.ts` removes the speech engine so reading is timer-driven.
+- `scripts/` — copies PDF.js helper files into `static/pdfjs/` before dev/build.
+- `static/` — the bundled sample PDF and its licence.
 
 ## Rules
 
-- Geometry and text logic live in `src/lib/text` and `src/lib/highlight`, not in Svelte components.
-  Components only wire state to the DOM.
+- Geometry, text and reading logic live in plain TypeScript modules with unit tests, not in Svelte
+  components. Components only wire state to the DOM.
 - pdfjs-dist is used directly (no wrappers) and only in the browser (`ssr = false`).
 - The overlay never captures pointer events; the native text layer stays usable for selection.
 - One source of truth for positions: character offsets into the page text built from the

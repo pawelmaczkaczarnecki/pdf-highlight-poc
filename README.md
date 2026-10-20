@@ -14,7 +14,8 @@ npm run dev
 ```
 
 Open http://localhost:5173. Press **Play** or click any word; `←/→` move by word, `Shift+←/→` by
-sentence, `Space` plays/pauses. Open your own PDF with the file picker.
+sentence, `Space` plays/pauses. Reading is silent by default; pick a voice under **Read aloud** to
+hear it. Open your own PDF with **Open PDF**.
 
 ## Test
 
@@ -37,7 +38,8 @@ Three layers per page, bottom to top:
 The page text is one string built from the PDF.js text items, and sentences and words are
 character ranges in it (`Intl.Segmenter`). A change of font size, a jump up the page (next
 column, header) or a large vertical gap ends a block, so a title never runs into the text below
-it; a word hyphenated across lines is one word with a box on each line.
+it; connected tokens ("Frontend-focused", "piano.io", e-mail addresses) are one word, also when
+hyphenated across two lines (then with a box on each line).
 
 Reading follows the page layout, not the order in which the PDF happens to draw text: running
 headers and footers (blocks in the top/bottom 5% of the page) are skipped, blocks are read column
@@ -51,8 +53,15 @@ each band. The **left and right edges** come from the PDF itself: the page's dra
 gives every glyph's real position and width. Where that is not possible (unknown or Type3 font,
 rotated text, glyphs that do not match the text), the text-layer edges are used.
 
-A timer stands in for the TTS engine; in a product, the engine's word events would move the same
-reader.
+**Reading aloud** is optional and off by default ("Voice off": the highlight moves on a timer).
+With a voice chosen under **Read aloud**, the browser's speech engine (`speechSynthesis`) speaks
+the rest of the current sentence as written on the page (no hidden spaces, ligatures as letters),
+and the voice's word events move the highlight. On-device voices are offered (novelty voices
+removed), Karen first where installed; on macOS with Chrome they reported every word. When a
+voice reports no usable word events (e.g. Google's network voices, offered only when the system
+has none), each sentence still starts with the voice and words follow an estimated pace. If
+speech fails, reading continues silently with a message. In a product, the TTS engine's own word
+timings would drive the same reader.
 
 More: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/DECISIONS.md](docs/DECISIONS.md).
 
@@ -91,6 +100,12 @@ on Linux, and the tests fail if boxes are shifted or shrunk by 3 px.
   1). Vertical text and Type3 fonts are not checked.
 - Rotated and vertical text are not highlighted precisely (boxes are axis-aligned).
 - No zoom; one page at a time; no reading across pages.
+- **Voices come from the viewer's operating system and browser**, not from this app: which voices
+  are available, how natural they sound and how they pronounce technical terms is outside its
+  control. The app only chooses among them and keeps the highlight in step.
+- Word timing is only as good as the voice's word events; where they are missing or unusable the
+  highlight inside a sentence is estimated. Behaviour was checked with real voices on macOS +
+  Chrome only; other systems were not tested.
 - Pages without a text layer (scans) have nothing to highlight.
 
 ## With more time
@@ -100,8 +115,8 @@ on Linux, and the tests fail if boxes are shifted or shrunk by 3 px.
   positions.
 - Zoom: recompute boxes from the same character ranges after re-rendering.
 - Continuous scrolling with lazy page rendering; reading across pages.
-- Real TTS: feed engine word timings (or the browser's `speechSynthesis` boundary events) into the
-  reader.
+- A TTS service with word timestamps (e.g. a cloud voice behind a small server) instead of
+  estimated timing for voices that report none.
 
 ## How AI was used
 
@@ -111,7 +126,7 @@ no automatic page advance); the agent proposed options and implemented. Work wen
 PRs, each with how it was verified; the scaffold and first vertical slice went straight to `main`.
 
 Verification: unit tests for pure logic, Playwright on the production build, mutation checks for
-the key guarantees (shifting or shrinking boxes by 3 px must fail the accuracy test), three rounds
+the key guarantees (shifting or shrinking boxes by 3 px must fail the accuracy test), several rounds
 of independent review where every finding was first reproduced by a failing test. Where the AI was
 wrong and how it was caught is logged in [docs/DEVELOPMENT_LOG.md](docs/DEVELOPMENT_LOG.md).
 

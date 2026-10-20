@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { clickWordInSpan } from './helpers';
 
 test('page 1 reads in layout order and never stops in a header or footer', async ({ page }) => {

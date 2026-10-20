@@ -41,9 +41,12 @@ export interface TextBlock {
 	readingRank: number;
 }
 
+/** The visible area of the page in PDF units. Its origin is not always 0 (cropped PDFs). */
 export interface PageSize {
 	width: number;
 	height: number;
+	/** Bottom edge of the visible area (y of its origin); 0 unless the page is cropped. */
+	bottom?: number;
 }
 
 /** A piece of a character range that falls inside one text item. Offsets are local to the item. */
@@ -184,8 +187,10 @@ function orderBlocks(
 }
 
 function pageBand(y: number, pageSize: PageSize): 'header' | 'footer' | 'body' {
-	if (y > pageSize.height * (1 - HEADER_BAND)) return 'header';
-	if (y < pageSize.height * FOOTER_BAND) return 'footer';
+	// Text positions are absolute; measure them from the visible area's own bottom edge.
+	const fromBottom = y - (pageSize.bottom ?? 0);
+	if (fromBottom > pageSize.height * (1 - HEADER_BAND)) return 'header';
+	if (fromBottom < pageSize.height * FOOTER_BAND) return 'footer';
 	return 'body';
 }
 

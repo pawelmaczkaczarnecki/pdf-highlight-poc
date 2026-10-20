@@ -17,6 +17,12 @@ const LOCALE = 'en';
 
 /** What separates the two halves of a word broken at the end of a line: a hyphen, then the line break. */
 const LINE_END_HYPHEN = '-\n';
+/**
+ * Characters that connect two word parts without a space into one token a voice reads as a whole:
+ * hyphenated compounds, ranges with an en dash ("9–11"), domains and versions ("piano.io", "2.5"),
+ * e-mails, URLs and paths. An em dash or a dash with spaces still separates words.
+ */
+const CONNECTORS = /^[-\u2010\u2013.@/_:]+$/;
 const STARTS_LOWERCASE = /^\p{Ll}/u;
 
 /**
@@ -62,7 +68,7 @@ export function splitWords(
 		}
 	}
 
-	return joinAcrossHiddenSpaces(joinLineBreakHyphenation(text, words), hiddenSpaces);
+	return joinAcrossHiddenSpaces(joinConnectedWords(text, words), hiddenSpaces);
 }
 
 function joinAcrossHiddenSpaces(words: Word[], hiddenSpaces: TextRange[]): Word[] {
@@ -84,21 +90,27 @@ function joinAcrossHiddenSpaces(words: Word[], hiddenSpaces: TextRange[]): Word[
 }
 
 /**
- * A word broken at the end of a line ("dispro-⏎portionately", or the compound "post-⏎study") is
- * one word to highlight, with a box on each line. Whether the hyphen is spoken (compound) or
- * dropped (syllable break) needs a dictionary, so that is left to the speech side.
- * A capitalised second half ("Kaplan-⏎Meier") is left as two words.
+ * Word parts that belong together are one word to highlight, as a voice reads them:
+ * - parts connected without spaces ("Frontend-focused", "piano.io", "jane@example.com",
+ *   "linkedin.com/in/jane-doe"). Browsers split these differently (Chrome splits "piano.io",
+ *   Node does not), so they are joined here explicitly;
+ * - a word broken at the end of a line ("dispro-⏎portionately", or the compound "post-⏎study"),
+ *   with a box on each line. A capitalised second half ("Kaplan-⏎Meier") is left as two words,
+ *   because after a line break it is as likely a new name as a continuation.
+ * Whether a line-end hyphen is spoken (compound) or dropped (syllable break) needs a dictionary,
+ * so that is left to the speech side.
  */
-function joinLineBreakHyphenation(text: string, words: Word[]): Word[] {
+export function joinConnectedWords(text: string, words: Word[]): Word[] {
 	const joined: Word[] = [];
 
 	for (const word of words) {
 		const previous = joined[joined.length - 1];
+		const between = previous ? text.slice(previous.end, word.start) : '';
+		const sameSentence = previous !== undefined && previous.sentenceIndex === word.sentenceIndex;
 		const isSecondHalf =
-			previous !== undefined &&
-			previous.sentenceIndex === word.sentenceIndex &&
-			text.slice(previous.end, word.start) === LINE_END_HYPHEN &&
-			STARTS_LOWERCASE.test(text.slice(word.start, word.end));
+			sameSentence &&
+			(CONNECTORS.test(between) ||
+				(between === LINE_END_HYPHEN && STARTS_LOWERCASE.test(text.slice(word.start, word.end))));
 
 		if (isSecondHalf) {
 			previous.end = word.end;

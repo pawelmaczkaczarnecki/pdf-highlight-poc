@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from './fixtures';
 import { clickWordInSpan } from './helpers';
 
 async function centerOf(locator: Locator) {
@@ -74,7 +74,7 @@ test('rapid page changes end on the last requested page without errors', async (
 	await expect(page.locator('.textLayer')).toContainText('0700');
 	// …and the canvas must show the same page: the accuracy check compares boxes from the text
 	// layer with ink on the canvas, so boxes over another page's ink give a large median error.
-	const median = page.getByTestId('accuracy-median-a');
+	const median = page.getByTestId('accuracy-median-text-layer');
 	await expect(median).toBeVisible();
 	expect(parseFloat((await median.textContent())!)).toBeLessThanOrEqual(1.5);
 	expect(errors).toEqual([]);

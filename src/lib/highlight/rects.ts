@@ -79,3 +79,33 @@ function isSameLine(a: Box, b: Box): boolean {
 
 	return verticallyAligned && horizontallyClose;
 }
+
+/**
+ * The page-text offset under a point, e.g. where the user clicked. Uses the browser's caret
+ * hit-testing on the native text-layer spans, then maps (span, offset in span) to the page text.
+ */
+export function offsetAtPoint(
+	pageText: PageText,
+	textDivs: HTMLElement[],
+	clientX: number,
+	clientY: number
+): number | null {
+	const caret = caretAt(clientX, clientY);
+	if (!caret) return null;
+
+	const span = caret.node.parentElement;
+	const itemIndex = span ? textDivs.indexOf(span) : -1;
+	if (itemIndex === -1) return null;
+
+	return pageText.itemStarts[itemIndex] + caret.offset;
+}
+
+function caretAt(clientX: number, clientY: number): { node: Node; offset: number } | null {
+	if (document.caretPositionFromPoint) {
+		const position = document.caretPositionFromPoint(clientX, clientY);
+		return position ? { node: position.offsetNode, offset: position.offset } : null;
+	}
+	// Older Safari only has the non-standard caretRangeFromPoint.
+	const range = document.caretRangeFromPoint?.(clientX, clientY);
+	return range ? { node: range.startContainer, offset: range.startOffset } : null;
+}

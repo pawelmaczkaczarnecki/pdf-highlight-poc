@@ -3,6 +3,13 @@
 	import type { PDFDocumentProxy } from 'pdfjs-dist';
 	import { loadPdf, type PdfSource } from '#lib/pdf/pdfjs.js';
 	import PdfPage from '#lib/pdf/PdfPage.svelte';
+	import type { RenderedPage } from '#lib/pdf/renderedPage.js';
+	import AccuracyPanel from '#lib/highlight/AccuracyPanel.svelte';
+	import {
+		isSpaceSeparated,
+		measureAccuracy,
+		type AccuracyReport
+	} from '#lib/highlight/accuracy.js';
 	import { Reader } from '#lib/reader/reader.svelte.js';
 	import type { PageText } from '#lib/text/pageText.js';
 
@@ -19,24 +26,38 @@
 	let pageNumber = $state(1);
 	let loadError = $state<string | null>(null);
 	let showAllWords = $state(false);
+	let pageText = $state<PageText | null>(null);
+	let accuracy = $state<AccuracyReport | null>(null);
 
 	const outlineRanges = $derived(showAllWords ? reader.words : []);
 
-	openDocument({ url: SAMPLE_PDF_URL }, 'sample.pdf');
+	// Only the latest "open" counts: an older file that finishes loading later is thrown away.
+	let latestOpenRequest = 0;
+
+	openDocument('sample.pdf', async () => ({ url: SAMPLE_PDF_URL }));
 	onDestroy(() => reader.pause());
 
-	async function openDocument(source: PdfSource, name: string) {
+	async function openDocument(name: string, readSource: () => Promise<PdfSource>) {
+		const request = ++latestOpenRequest;
+		const isStale = () => request !== latestOpenRequest;
 		reader.clear();
+		accuracy = null;
 		loadError = null;
+
 		try {
-			const loaded = await loadPdf(source);
+			const loaded = await loadPdf(await readSource());
+			if (isStale()) {
+				await loaded.loadingTask.destroy();
+				return;
+			}
 			const previous = pdf;
+			fileName = name;
+			pageNumber = 1;
 			pdf = loaded;
 			// Free the old document's worker resources once the page has switched to the new one.
 			await previous?.loadingTask.destroy();
-			fileName = name;
-			pageNumber = 1;
 		} catch (error) {
+			if (isStale()) return;
 			loadError = `Could not open ${name}: ${error instanceof Error ? error.message : String(error)}`;
 		}
 	}
@@ -44,22 +65,42 @@
 	async function handleFileChange(event: Event & { currentTarget: HTMLInputElement }) {
 		const file = event.currentTarget.files?.[0];
 		if (!file) return;
-		await openDocument({ data: await file.arrayBuffer() }, file.name);
+		await openDocument(file.name, async () => ({ data: await file.arrayBuffer() }));
 	}
 
 	function goToPage(next: number) {
 		if (!pdf || next < 1 || next > pdf.numPages) return;
 		reader.clear();
+		accuracy = null;
 		pageNumber = next;
 	}
 
-	function handleTextReady(pageText: PageText) {
-		reader.loadText(pageText.text);
+	function handleTextReady(text: PageText) {
+		pageText = text;
+		accuracy = null;
+		reader.loadText(text.text);
+	}
+
+	function handleRendered(page: RenderedPage) {
+		if (!pageText) return;
+		const text = pageText.text;
+		const measurable = reader.words
+			.filter((word) => isSpaceSeparated(text, word))
+			.map((word) => ({ wordIndex: word.index, boxes: page.measure(word) }));
+		accuracy = measureAccuracy(page.canvas, page.cssWidth, reader.words.length, measurable);
+	}
+
+	function wordText(wordIndex: number): string {
+		const word = reader.words[wordIndex];
+		return word && pageText ? pageText.text.slice(word.start, word.end) : '';
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
 		const target = event.target as HTMLElement;
-		if (target.closest('input, select, textarea')) return;
+		// Typing in a form field must not control playback.
+		if (target.closest('input, select, textarea, [contenteditable]')) return;
+		// Space on a focused button or link is that control's own activation.
+		if (event.key === ' ' && target.closest('button, a')) return;
 
 		const actions: Record<string, () => void> = {
 			' ': () => reader.togglePlay(),
@@ -169,6 +210,14 @@
 		{/if}
 	</p>
 
+	{#if pdf && !loadError}
+		<AccuracyPanel
+			report={accuracy}
+			{wordText}
+			onSelectWord={(wordIndex) => reader.goToWord(wordIndex)}
+		/>
+	{/if}
+
 	<main class="flex justify-center p-4">
 		{#if loadError}
 			<p role="alert" class="text-red-700">{loadError}</p>
@@ -182,6 +231,7 @@
 				{outlineRanges}
 				onTextReady={handleTextReady}
 				onTextClick={(offset) => reader.goToOffset(offset)}
+				onRendered={handleRendered}
 			/>
 		{:else}
 			<p>Loading…</p>

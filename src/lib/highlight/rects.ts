@@ -97,7 +97,23 @@ export function offsetAtPoint(
 	const itemIndex = span ? textDivs.indexOf(span) : -1;
 	if (itemIndex === -1) return null;
 
-	return pageText.itemStarts[itemIndex] + caret.offset;
+	// The caret sits *between* characters: on the right half of a letter it is placed after it.
+	// We want the character under the pointer, which is then the one before the caret.
+	const offsetInItem = isPointOnCharacter(caret.node, caret.offset - 1, clientX, clientY)
+		? caret.offset - 1
+		: caret.offset;
+	return pageText.itemStarts[itemIndex] + offsetInItem;
+}
+
+function isPointOnCharacter(node: Node, index: number, clientX: number, clientY: number): boolean {
+	if (index < 0) return false;
+	const range = document.createRange();
+	range.setStart(node, index);
+	range.setEnd(node, index + 1);
+	const rect = range.getBoundingClientRect();
+	return (
+		clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom
+	);
 }
 
 function caretAt(clientX: number, clientY: number): { node: Node; offset: number } | null {

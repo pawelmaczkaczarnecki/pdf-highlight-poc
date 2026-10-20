@@ -24,6 +24,25 @@
 ## Accuracy check
 
 Box positions are checked against the rendered canvas, not against the DOM range they were
-computed from: `e2e/highlight.e2e.ts` walks outwards from the middle of the word box over the
-canvas pixels until it meets a word-sized blank gap, and requires the ink edges to be within 2 px
-of the box edges. A mutation check (shifting boxes by 4 px) makes the test fail.
+computed from (`src/lib/highlight/accuracy.ts`, shown in the demo and asserted in e2e):
+
+- For each word with a space on both sides, read the canvas pixels around its box. Ink = pixels
+  clearly different from the strip's most common colour (works for white text on coloured panels).
+- Near each box edge, the widest blank run is the word space; the ink starts/ends there.
+  Error = distance between box edge and ink edge.
+- The two spaces must be confirmed: every gap inside the word must be narrower than them.
+  Otherwise the word is "not measured" (a box shrunk onto letter gaps would score ~0 px).
+- Excluded: words touching punctuation (the punctuation's ink would count as the word's) and
+  words split over two lines.
+- Mutation checks: shifting all boxes by 3 px, or shrinking them by 3 px on both sides, raises the
+  median to 4 px and fails the e2e test. It is an estimate of horizontal edges only (vertical
+  extent is not measured).
+
+Sample PDF, page 1 (macOS Chromium, DPR 2): 762 of 938 words measured, median 1.0 px,
+81% within 2 px, 95% within 3.5 px. The largest errors come from the PDF's own text
+("confi rmation": the PDF draws a hidden space glyph after the "ﬁ" ligature, and PDF.js extracts it) and from a small sans-serif header
+whose fallback font differs most from the real one.
+
+The first metric version (walk out from the middle until a 3 px gap) reported 12 px errors: on
+tightly justified lines word spaces are only ~2 px, and punctuation joined the word. Found by
+looking at pixel profiles of the worst words before trusting the number.

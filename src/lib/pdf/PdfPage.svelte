@@ -9,6 +9,7 @@
 	import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 	import HighlightLayer from '#lib/highlight/HighlightLayer.svelte';
 	import { measureRange, offsetAtPoint } from '#lib/highlight/rects.js';
+	import type { RenderedPage } from './renderedPage.js';
 	import { buildPageText, type PageText } from '#lib/text/pageText.js';
 	import type { TextRange } from '#lib/text/segment.js';
 
@@ -22,6 +23,7 @@
 		outlineRanges: TextRange[];
 		onTextReady: (pageText: PageText) => void;
 		onTextClick: (offset: number) => void;
+		onRendered: (page: RenderedPage) => void;
 	}
 
 	let {
@@ -32,7 +34,8 @@
 		wordRange,
 		outlineRanges,
 		onTextReady,
-		onTextClick
+		onTextClick,
+		onRendered
 	}: Props = $props();
 
 	let pageElement: HTMLDivElement | undefined;
@@ -107,6 +110,15 @@
 			renderCanvas(page, viewport, cleanups),
 			renderTextLayer(page, viewport, cleanups, isCancelled)
 		]);
+		if (isCancelled() || !pageText || !pageElement) return;
+
+		const renderedText = pageText;
+		const element = pageElement;
+		onRendered({
+			canvas,
+			cssWidth: size.width,
+			measure: (range) => measureRange(renderedText, textDivs, element, range)
+		});
 	}
 
 	function renderCanvas(

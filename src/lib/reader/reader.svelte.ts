@@ -69,6 +69,10 @@ export class Reader {
 		this.#goTo(previousSentenceStart(this.words, this.wordIndex));
 	}
 
+	goToWord(index: number): void {
+		this.#goTo(index);
+	}
+
 	goToOffset(offset: number): void {
 		const index = wordAtOffset(this.words, offset);
 		if (index !== null) this.#goTo(index);

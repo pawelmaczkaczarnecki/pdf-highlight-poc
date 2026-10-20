@@ -71,6 +71,21 @@ describe('edgeErrors', () => {
 		expect(edgeErrors(word, 6, 21, 3)).toEqual({ left: 0, right: 0 });
 	});
 
+	it('does not take the space before an italic neighbour for the word space', () => {
+		// "that c relationships" from the sample: the italic "c" leans into the space after it, so
+		// that space (5 columns) is narrower than the one before "c" (8). The box starts at 49,
+		// exactly where "relationships" starts.
+		const profile = '###.######################........##########.....' + '#'.repeat(30) + '......';
+		const columns = [...profile].map((c) => c === '#');
+		expect(edgeErrors(columns, 49, 79, 16)).toEqual({ left: 0, right: 0 });
+	});
+
+	it('still reports a box shifted into the word next to an italic neighbour', () => {
+		const profile = '###.######################........##########.....' + '#'.repeat(30) + '......';
+		const columns = [...profile].map((c) => c === '#');
+		expect(edgeErrors(columns, 55, 85, 16)?.left).toBe(6);
+	});
+
 	it('returns null when there is no gap near an edge', () => {
 		expect(edgeErrors(Array(20).fill(true), 5, 15, 3)).toBeNull();
 	});

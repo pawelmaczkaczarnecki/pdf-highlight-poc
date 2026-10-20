@@ -1,28 +1,28 @@
 <script lang="ts">
-	import type { PositionSource } from '#lib/pdf/renderedPage.js';
 	import type { AccuracyComparison, AccuracyReport } from './accuracy.js';
 
 	interface Props {
 		comparison: AccuracyComparison | null;
-		active: PositionSource;
 		wordText: (wordIndex: number) => string;
 		onSelectWord: (wordIndex: number) => void;
 	}
 
-	let { comparison, active, wordText, onSelectWord }: Props = $props();
+	let { comparison, wordText, onSelectWord }: Props = $props();
 
 	const px = (value: number) => `${value.toFixed(1)} px`;
 	// Rounded down, so 763 of 764 words never reads as "100%".
 	const percent = (value: number) => `${Math.floor(value * 1000) / 10}%`;
 
+	// The highlights use glyph positions; the text-layer-only boxes are shown as the baseline they
+	// improve on.
 	const rows = $derived(
 		comparison
 			? [
-					{ source: 'text-layer', id: 'a', label: 'A · text layer', report: comparison.textLayer },
-					{ source: 'glyphs', id: 'b', label: 'B · glyph positions', report: comparison.glyphs }
+					{ id: 'b', label: 'Glyph positions (used)', report: comparison.glyphs },
+					{ id: 'a', label: 'Text layer only (baseline)', report: comparison.textLayer }
 				]
 			: []
-	) as Array<{ source: PositionSource; id: string; label: string; report: AccuracyReport }>;
+	) as Array<{ id: string; label: string; report: AccuracyReport }>;
 </script>
 
 <section
@@ -40,15 +40,15 @@
 			<span class="text-slate-500">
 				— left/right word box edges vs. letter ink on the rendered page, on the same
 				<span data-testid="accuracy-measured">{comparison.textLayer.measured}</span> of
-				{comparison.textLayer.words} words for both. B used glyph positions for
+				{comparison.textLayer.words} words for both. Glyph positions were used for
 				<span data-testid="accuracy-glyph-words">{comparison.glyphPositionsUsed}</span> words (the rest
-				fall back to A).</span
+				fall back to the text layer).</span
 			>
 		</p>
 		<table class="mt-1 w-full text-left tabular-nums">
 			<thead class="text-slate-500">
 				<tr>
-					<th class="pr-3 font-normal">Box edges</th>
+					<th class="pr-3 font-normal">Box edges from</th>
 					<th class="pr-3 font-normal">median</th>
 					<th class="pr-3 font-normal">95% within</th>
 					<th class="pr-3 font-normal">≤ 2 px</th>
@@ -58,8 +58,8 @@
 			</thead>
 			<tbody>
 				{#each rows as row (row.id)}
-					<tr class={row.source === active ? 'font-medium' : ''}>
-						<td class="pr-3">{row.label}{row.source === active ? ' (shown)' : ''}</td>
+					<tr class={row.id === 'b' ? 'font-medium' : 'text-slate-500'}>
+						<td class="pr-3">{row.label}</td>
 						<td class="pr-3" data-testid="accuracy-median-{row.id}">{px(row.report.medianPx)}</td>
 						<td class="pr-3">{px(row.report.p95Px)}</td>
 						<td class="pr-3" data-testid="accuracy-within-2px-{row.id}"

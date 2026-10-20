@@ -1,5 +1,4 @@
 import { expect, test } from '@playwright/test';
-import { clickWordInSpan } from './helpers';
 
 test('accuracy report measures the page and its worst words can be inspected', async ({ page }) => {
 	await page.goto('/');
@@ -39,20 +38,4 @@ test('glyph positions (B) are measured on the same words and are at least as acc
 		await value('accuracy-within-2px-a')
 	);
 	expect(await value('accuracy-max-b')).toBeLessThanOrEqual(await value('accuracy-max-a'));
-});
-
-test('switching to text-layer positions moves the word box, and back restores it', async ({
-	page
-}) => {
-	await page.goto('/');
-	await expect(page.getByTestId('position-source')).toHaveValue('glyphs');
-	await clickWordInSpan(page, 'controversy is seen across the', 'range');
-	const box = () => page.getByTestId('word-box').first().boundingBox();
-	const glyphBox = await box();
-
-	await page.getByTestId('position-source').selectOption('text-layer');
-	await expect.poll(async () => (await box())!.x).not.toBe(glyphBox!.x);
-
-	await page.getByTestId('position-source').selectOption('glyphs');
-	await expect.poll(async () => (await box())!.x).toBe(glyphBox!.x);
 });

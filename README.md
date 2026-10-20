@@ -39,13 +39,17 @@ character ranges in it (`Intl.Segmenter`). A change of font size, a jump up the 
 column, header) or a large vertical gap ends a block, so a title never runs into the text below
 it; a word hyphenated across lines is one word with a box on each line.
 
+Reading follows the page layout, not the order in which the PDF happens to draw text: running
+headers and footers (blocks in the top/bottom 5% of the page) are skipped, blocks are read column
+by column from the top, a sentence that continues at the top of the next column stays one
+sentence, and a drop cap joins its word ("P" + "ublished").
+
 To highlight a range, it is mapped to the text-layer spans and the browser measures it with
 `Range.getClientRects()`; rectangles are merged into one band per line. That gives the height of
-each band (**approach A**). The **left and right edges** then come from the PDF itself
-(**approach B, the default**): the page's drawing instructions (`getOperatorList()`) are replayed
-with the same arithmetic the PDF.js canvas renderer uses, which gives every glyph's real position
-and width. Where that is not possible (unknown or Type3 font, rotated text, glyphs that do not
-match the text), the A box is used. The toolbar switches between A and B.
+each band. The **left and right edges** come from the PDF itself: the page's drawing instructions
+(`getOperatorList()`) are replayed with the same arithmetic the PDF.js canvas renderer uses, which
+gives every glyph's real position and width. Where that is not possible (unknown or Type3 font,
+rotated text, glyphs that do not match the text), the text-layer edges are used.
 
 A timer stands in for the TTS engine; in a product, the engine's word events would move the same
 reader.
@@ -58,27 +62,29 @@ The demo measures itself. For every word with a space on both sides, it compares
 with where the letters are actually drawn on the canvas (pixels, not the DOM range the box came
 from) and shows a summary above the page. Click a word in "Largest errors" to inspect it.
 
-A and B are measured on exactly the same words (macOS Chromium; median / 95th percentile / max):
+Glyph-position edges against the text-layer-only baseline, on exactly the same words (macOS
+Chromium; median / 95th percentile / max):
 
-| PDF (page 1)                                   | A · text layer     | B · glyph positions    |
+| PDF (page 1)                                   | Text layer only    | Glyph positions (used) |
 | ---------------------------------------------- | ------------------ | ---------------------- |
-| Sample journal article (764 words compared)    | 1.0 / 3.5 / 7.5 px | **0.5 / 1.0 / 7.5 px** |
+| Sample journal article (752 words compared)    | 1.0 / 3.5 / 5.0 px | **0.5 / 1.0 / 2.5 px** |
 | Chrome "print to PDF", two columns (566 words) | 1.5 / 3.5 / 5.5 px | **0.5 / 1.0 / 2.0 px** |
 
-The 7.5 px on the sample is one word whose box matches when zoomed in (the metric is confused by
-an italic letter next to it). The second PDF is a local test document, not in the repository.
-The same check runs in CI on Linux, and the tests fail if boxes are shifted or shrunk by 3 px.
+The remaining ~2 px are large title letters: a box ends where the glyph's advance ends, while the
+ink of a 25 pt letter starts 1–2 px inside it, so the metric has a floor that grows with the font
+size. The second PDF is a local test document, not in the repository. The same check runs in CI
+on Linux, and the tests fail if boxes are shifted or shrunk by 3 px.
 
 ## Known limitations
 
 - **Box height** comes from the text layer (the browser's fallback font), so bands can be a little
   taller or shorter than the letters; only left/right edges come from the PDF.
-- **Fallback to A** (letter positions from the browser's fallback font, ~1–2 px median, up to
-  ~7 px) for Type3 fonts, rotated or vertical text, and pages whose drawn glyphs do not match the
+- **Fallback to the text layer** (letter positions from the browser's fallback font, ~1 px median,
+  up to ~5 px) for Type3 fonts, rotated or vertical text, and pages whose drawn glyphs do not match the
   extracted text.
-- **Reading order is the PDF's content order**, not visual order: on multi-column pages reading
-  can jump. Drop caps and section headings set in the body font are not recognised as separate
-  blocks. Real layout analysis is out of scope.
+- **Reading order is a layout heuristic** (columns by left edge, then top to bottom), not a full
+  layout analysis: tables, figure captions and side boxes are read where they sit in their
+  column; section headings set in the body font are not separate blocks.
 - **Hidden spaces after ligatures** are handled only where glyph positions confirm them: some
   PDFs draw an invisible space over "ﬁ"/"ﬂ" ("conﬁ rmation"). A space glyph after which the next
   letter starts where the previous one ended is treated as not there (5 words on the sample page
@@ -107,7 +113,7 @@ PRs, each with how it was verified; the scaffold and first vertical slice went s
 Verification: unit tests for pure logic, Playwright on the production build, mutation checks for
 the key guarantees (shifting or shrinking boxes by 3 px must fail the accuracy test), three rounds
 of independent review where every finding was first reproduced by a failing test. Where the AI was
-wrong and how it was caught is logged in [docs/SESSION.md](docs/SESSION.md).
+wrong and how it was caught is logged in [docs/DEVELOPMENT_LOG.md](docs/DEVELOPMENT_LOG.md).
 
 ## What I learned
 
@@ -116,6 +122,8 @@ wrong and how it was caught is logged in [docs/SESSION.md](docs/SESSION.md).
   justified lines are only ~2 px), not the boxes.
 - A test that cannot fail proves nothing: the first canvas test searched only 2 px around the box,
   so it could never report a larger error. A deliberate 4 px shift exposed it.
+- An "error" can be the ruler's: "relationships" showed 7.5 px while its box was exact — an
+  italic "c" before it leaned into the space, and the metric took the wider space before the "c".
 - "confirmation" highlighted as "confi" + "rmation" was not our segmentation: the PDF draws a
   hidden space glyph after the "ﬁ" ligature. My first fix (join words after a ligature) broke
   "staff members" — text alone cannot tell a hidden space from a real one; glyph positions can.

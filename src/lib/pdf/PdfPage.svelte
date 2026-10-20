@@ -21,7 +21,6 @@
 		pdf: PDFDocumentProxy;
 		pageNumber: number;
 		scale: number;
-		positionSource: PositionSource;
 		sentenceRange: TextRange | null;
 		wordRange: TextRange | null;
 		/** Ranges drawn as thin outlines, e.g. every word on the page to inspect accuracy. */
@@ -35,7 +34,6 @@
 		pdf,
 		pageNumber,
 		scale,
-		positionSource,
 		sentenceRange,
 		wordRange,
 		outlineRanges,
@@ -56,8 +54,10 @@
 	let glyphEdgeAt: (offset: number) => GlyphEdge | null = () => null;
 	let errorMessage = $state<string | null>(null);
 
-	const sentenceBoxes = $derived(sentenceRange ? measure(sentenceRange, positionSource) : []);
-	const wordBoxes = $derived(wordRange ? measure(wordRange, positionSource) : []);
+	// Highlights use glyph positions (B); the text-layer-only boxes (A) are measured for the
+	// accuracy report's baseline and are the fallback inside B.
+	const sentenceBoxes = $derived(sentenceRange ? measure(sentenceRange, 'glyphs') : []);
+	const wordBoxes = $derived(wordRange ? measure(wordRange, 'glyphs') : []);
 
 	function measure(range: TextRange, source: PositionSource): Box[] {
 		if (!pageText || !pageElement) return [];
@@ -67,7 +67,7 @@
 	}
 
 	const outlineBoxes = $derived(
-		pageText && pageElement ? outlineRanges.flatMap((range) => measure(range, positionSource)) : []
+		pageText && pageElement ? outlineRanges.flatMap((range) => measure(range, 'glyphs')) : []
 	);
 
 	function handleClick(event: MouseEvent) {
@@ -201,7 +201,8 @@
 		// PageText map onto spans by index.
 		const items = textContent.items.filter((item): item is TextItem => 'str' in item);
 		textDivs = textLayer.textDivs;
-		const builtText = buildPageText(items);
+		const [left, bottom, right, top] = page.view;
+		const builtText = buildPageText(items, { width: right - left, height: top - bottom });
 		const { hiddenSpaces, edgeAt } = await analyzeGlyphs(page, viewport, builtText.text);
 		if (isCancelled()) return;
 		glyphEdgeAt = edgeAt;

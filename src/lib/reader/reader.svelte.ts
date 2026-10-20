@@ -5,7 +5,9 @@ import {
 	type TextRange,
 	type Word
 } from '#lib/text/segment.js';
+import type { PageText } from '#lib/text/pageText.js';
 import { nextSentenceStart, previousSentenceStart, wordAtOffset } from './navigation.js';
+import { orderSentences } from './readingOrder.js';
 
 const MS_PER_MINUTE = 60_000;
 
@@ -27,10 +29,13 @@ export class Reader {
 
 	#timer: ReturnType<typeof setTimeout> | null = null;
 
-	loadText(text: string, hiddenSpaces: TextRange[] = []): void {
+	/**
+	 * @param hiddenSpaces whitespace that is not a word boundary on the page (after ligatures)
+	 */
+	loadText(pageText: PageText, hiddenSpaces: TextRange[] = []): void {
 		this.pause();
-		this.sentences = splitSentences(text);
-		this.words = splitWords(text, this.sentences, hiddenSpaces);
+		this.sentences = orderSentences(splitSentences(pageText.text), pageText.blocks);
+		this.words = splitWords(pageText.text, this.sentences, [...hiddenSpaces, ...pageText.joins]);
 		this.wordIndex = 0;
 	}
 

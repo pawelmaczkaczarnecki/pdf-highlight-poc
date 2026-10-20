@@ -46,6 +46,12 @@ describe('wordAtOffset', () => {
 		expect(wordAtOffset(words, 8)).toBe(2);
 	});
 
+	it('finds the clicked word even when words are not in text order (reading order)', () => {
+		const reordered = [words[5], words[0], words[1]];
+		expect(wordAtOffset(reordered, 1)).toBe(1);
+		expect(wordAtOffset(reordered, 27)).toBe(0);
+	});
+
 	it('returns null after the last word', () => {
 		expect(wordAtOffset(words, 40)).toBeNull();
 	});

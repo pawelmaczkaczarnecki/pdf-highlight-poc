@@ -86,3 +86,68 @@ describe('buildPageText with blocks', () => {
 		expect(pageText.text.slice(pageText.itemStarts[1], pageText.itemStarts[1] + 4)).toBe('Body');
 	});
 });
+
+describe('buildPageText reading order', () => {
+	const page = { width: 600, height: 800 };
+
+	it('continues a sentence from the bottom of one column to the top of the next', () => {
+		const pageText = buildPageText(
+			[
+				item('Here I will examine the key', 50, 100, 10, true),
+				item('factors that matter.', 320, 700, 10, true)
+			],
+			page
+		);
+		expect(pageText.text).not.toContain(BLOCK_BREAK);
+	});
+
+	it('still starts a new block at the top of the next column after a finished sentence', () => {
+		const pageText = buildPageText(
+			[item('The end.', 50, 100, 10, true), item('A new start', 320, 700, 10, true)],
+			page
+		);
+		expect(pageText.text).toContain(BLOCK_BREAK);
+	});
+
+	it('joins a drop cap with the rest of its word ("P" + "ublished")', () => {
+		const pageText = buildPageText(
+			// A three-line drop cap: its baseline is ~2 lines below the first line of text.
+			[item('P', 50, 500, 40, true), item('ublished research', 80, 524, 10, true)],
+			page
+		);
+		const join = pageText.joins[0];
+		expect(pageText.text.slice(0, join.start)).toBe('P');
+		expect(pageText.text.slice(join.end).startsWith('ublished')).toBe(true);
+	});
+
+	it('marks running headers and footers, and reads the rest in layout order', () => {
+		const pageText = buildPageText(
+			[
+				item('Journal | page 12', 50, 20, 8, true), // footer, first in the content stream
+				item('Body text of the article.', 50, 600, 10, true),
+				item('The Title', 50, 740, 20, true), // drawn last, but highest on the page
+				item('Open access', 400, 790, 9, true) // header
+			],
+			page
+		);
+		const label = (i: number) =>
+			pageText.text.slice(pageText.blocks[i].start, pageText.blocks[i].end).trim();
+		expect(pageText.blocks.filter((b) => b.isPageFurniture)).toHaveLength(2);
+		const byRank = [...pageText.blocks.keys()]
+			.filter((i) => !pageText.blocks[i].isPageFurniture)
+			.sort((a, b) => pageText.blocks[a].readingRank - pageText.blocks[b].readingRank)
+			.map(label);
+		expect(byRank).toEqual(['The Title', 'Body text of the article.']);
+	});
+
+	it('does not treat the first line of a column near the top as a header', () => {
+		const pageText = buildPageText(
+			[
+				item('continued text at the top', 50, 750, 10, true),
+				item('of the column.', 50, 738, 10, true)
+			],
+			page
+		);
+		expect(pageText.blocks.every((b) => !b.isPageFurniture)).toBe(true);
+	});
+});

@@ -98,11 +98,17 @@ export function edgeErrors(
 	// Each search stays on its own half of the word, so in a one-letter word the left edge
 	// cannot pick up the space after the word.
 	const middle = Math.round((leftEdge + rightEdge) / 2);
-	const leftGap = widestBlankRun(columns, leftEdge - window, Math.min(leftEdge + window, middle));
-	const rightGap = widestBlankRun(
+	const leftGap = wordSpaceNear(
+		columns,
+		leftEdge - window,
+		Math.min(leftEdge + window, middle),
+		(run) => Math.abs(run.end - leftEdge)
+	);
+	const rightGap = wordSpaceNear(
 		columns,
 		Math.max(rightEdge - window, middle),
-		rightEdge + window
+		rightEdge + window,
+		(run) => Math.abs(run.start - rightEdge)
 	);
 	if (!leftGap || !rightGap) return null;
 
@@ -117,20 +123,35 @@ export function edgeErrors(
 	return { left: Math.abs(inkStart - leftEdge), right: Math.abs(inkEnd - rightEdge) };
 }
 
+interface BlankRun {
+	start: number;
+	end: number;
+}
+
 /**
- * The widest run of blank columns that has at least one column in [from, to). Runs are measured
- * over their full length, so a word space cut by the window edge does not look narrower.
- * `end` is the first column after the run.
+ * The word space next to a box edge: of the blank runs in [from, to) wide enough to be a space
+ * rather than a gap between letters (more than half the widest one), the one closest to the edge.
+ * Closest, not widest: an italic neighbour leans into the space after it, so the real word space
+ * can be narrower than the space one word further away.
  */
-function widestBlankRun(
+function wordSpaceNear(
 	columns: boolean[],
 	from: number,
-	to: number
-): { start: number; end: number } | null {
-	let best: { start: number; end: number } | null = null;
+	to: number,
+	distanceToEdge: (run: BlankRun) => number
+): BlankRun | null {
+	const runs = blankRuns(columns, from, to);
+	if (runs.length === 0) return null;
+	const widest = Math.max(...runs.map((run) => run.end - run.start));
+	const spaces = runs.filter((run) => (run.end - run.start) * 2 > widest);
+	return spaces.reduce((best, run) => (distanceToEdge(run) < distanceToEdge(best) ? run : best));
+}
+
+/** Every run of blank columns touching [from, to), measured over its full length. */
+function blankRuns(columns: boolean[], from: number, to: number): BlankRun[] {
+	const runs: BlankRun[] = [];
 	let x = Math.max(0, from);
 	const last = Math.min(columns.length, to);
-
 	while (x < last) {
 		if (columns[x]) {
 			x++;
@@ -140,10 +161,17 @@ function widestBlankRun(
 		while (start > 0 && !columns[start - 1]) start--;
 		let end = x;
 		while (end < columns.length && !columns[end]) end++;
-		if (!best || end - start > best.end - best.start) best = { start, end };
+		runs.push({ start, end });
 		x = end;
 	}
-	return best;
+	return runs;
+}
+
+/** The widest run of blank columns touching [from, to), or null if there is none. */
+function widestBlankRun(columns: boolean[], from: number, to: number): BlankRun | null {
+	const runs = blankRuns(columns, from, to);
+	if (runs.length === 0) return null;
+	return runs.reduce((best, run) => (run.end - run.start > best.end - best.start ? run : best));
 }
 
 /** Only words with a space (or line edge) on both sides can be measured without punctuation noise. */

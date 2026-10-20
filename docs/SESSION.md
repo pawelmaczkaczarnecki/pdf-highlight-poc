@@ -1,16 +1,12 @@
-# Session
+# Development log
 
-Started: 18:04. Length: 240 min.
+## Goals
 
-## Acceptance criteria
-
-- [ ] PDF page renders sharply (also on HiDPI screens).
-- [ ] A custom overlay layer sits above the native PDF.js layers, does not block clicks, keeps text readable.
-- [ ] A whole sentence is highlighted accurately, also across lines (one band per line).
-- [ ] A single word is highlighted accurately (edges at letter boundaries).
-- [ ] Reading can be stepped / played sentence by sentence and word by word.
-- [ ] Public demo URL; private GitHub repository.
-- [ ] README: approach, limitations, next steps.
+- [x] PDF page renders sharply (also on HiDPI screens).
+- [x] A custom overlay layer sits above the native PDF.js layers, does not block clicks, keeps text readable.
+- [x] A whole sentence is highlighted accurately, also across lines (one band per line).
+- [x] A single word is highlighted accurately (edges at letter boundaries).
+- [x] Reading can be stepped / played sentence by sentence and word by word.
 
 ## Out of scope
 
@@ -18,16 +14,34 @@ Started: 18:04. Length: 240 min.
 
 ## Progress
 
-Done:
+Done (from the third step on, each change went through a PR describing how it was verified):
 
 - Skeleton: SvelteKit + TS + Tailwind + Vitest + Playwright + adapter-static, pdfjs-dist 6.4.299.
-  Next:
-- Vertical slice: load sample PDF → render page → highlight one hardcoded word.
+- Vertical slice: sample PDF → canvas + text layer + overlay → sentence and word highlighted.
+- Correct text-layer scale, safe render cancellation, canvas-pixel accuracy test.
+- Reader controls, click-to-read, page navigation, file picker, "show all word boxes".
+- CI (GitHub Actions): lint, typecheck, unit, e2e on the production build.
+- Accuracy report in the demo (canvas ink vs. box edges), clickable worst words.
+- Robustness: stale loads, last-letter clicks, Space on buttons, stricter metric.
+- Sentences end at block boundaries; footnote markers do not split sentences.
+- Accessible playback announcements, empty-page message, narrow screens, speed changes.
+- Words hyphenated across lines are one word with a box per line.
+- PDF.js helper files (image decoders, standard fonts, CJK maps); highlight starts on screen and
+  the view follows it; failed loads free their worker.
+- Hidden spaces after ligatures detected from glyph positions.
+- README, deployment from a clean clone.
+
+- Approach B (default): box edges from glyph positions, A as toggle and fallback; compared with
+  A on the same words of two differently produced PDFs; B-mode regression tests.
+
+Scope frozen after the B experiment.
 
 ## AI mistakes caught
 
 | What the agent did                                                                                                                                                                                                                                     | How it was noticed                                                      | Fix                                                                                                 |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Wrote that hidden spaces are only joined when glyphs match the text 1:1, but the code compared only the character count                                                                                                                                | Independent reviewer ran "ab cd" against drawn "ax cd"                  | Compare characters, not only count; test for a same-length mismatch                                 |
+| Edited the progress list by searching for a heading the formatter had re-indented; the edits silently did nothing for most of the work                                                                                                                 | Noticed while cleaning up the docs                                      | Rewrote the list from the PR history                                                                |
 | Wrote "word edges off by ~1–2 px" into DECISIONS.md as a fact without measuring it                                                                                                                                                                     | Independent reviewer (second AI tool)                                   | Replaced with a measured check against canvas pixels                                                |
 | First canvas accuracy test only searched for ink within 2 px of the box, so it could never report an error larger than 2 px                                                                                                                            | Mutation check: boxes shifted by 4 px, test still passed                | Rewrote it to walk outwards from the word's middle to a word-sized gap; the same mutation now fails |
 | Unit test expected "[4,5]" to be two words; Intl.Segmenter keeps "4,5" as one number                                                                                                                                                                   | Test failure                                                            | Fixed the expectation (the code was right)                                                          |

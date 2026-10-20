@@ -3,15 +3,16 @@
 	import type { PDFDocumentProxy } from 'pdfjs-dist';
 	import { loadPdf, type PdfSource } from '#lib/pdf/pdfjs.js';
 	import PdfPage from '#lib/pdf/PdfPage.svelte';
-	import type { RenderedPage } from '#lib/pdf/renderedPage.js';
+	import type { PositionSource, RenderedPage } from '#lib/pdf/renderedPage.js';
 	import AccuracyPanel from '#lib/highlight/AccuracyPanel.svelte';
 	import {
+		compareAccuracy,
 		isSpaceSeparated,
-		measureAccuracy,
-		type AccuracyReport
+		type AccuracyComparison
 	} from '#lib/highlight/accuracy.js';
 	import { Reader } from '#lib/reader/reader.svelte.js';
 	import type { PageText } from '#lib/text/pageText.js';
+	import type { TextRange } from '#lib/text/segment.js';
 
 	const SAMPLE_PDF_URL = '/sample.pdf';
 	const SCALE = 1.5;
@@ -29,7 +30,9 @@
 	let loadError = $state<string | null>(null);
 	let showAllWords = $state(false);
 	let pageText = $state<PageText | null>(null);
-	let accuracy = $state<AccuracyReport | null>(null);
+	let accuracy = $state<AccuracyComparison | null>(null);
+	// B is the default: measured as more accurate than A on two differently produced PDFs.
+	let positionSource = $state<PositionSource>('glyphs');
 	let toolbar: HTMLElement;
 	let documentArea: HTMLElement;
 
@@ -98,10 +101,10 @@
 		pageNumber = next;
 	}
 
-	function handleTextReady(text: PageText) {
+	function handleTextReady(text: PageText, hiddenSpaces: TextRange[]) {
 		pageText = text;
 		accuracy = null;
-		reader.loadText(text.text);
+		reader.loadText(text.text, hiddenSpaces);
 	}
 
 	function handleRendered(page: RenderedPage) {
@@ -110,8 +113,12 @@
 		const text = pageText.text;
 		const measurable = reader.words
 			.filter((word) => isSpaceSeparated(text, word))
-			.map((word) => ({ wordIndex: word.index, boxes: page.measure(word) }));
-		accuracy = measureAccuracy(page.canvas, page.cssWidth, reader.words.length, measurable);
+			.map((word) => ({
+				wordIndex: word.index,
+				textLayer: page.measure(word, 'text-layer'),
+				glyphs: page.measure(word, 'glyphs')
+			}));
+		accuracy = compareAccuracy(page.canvas, page.cssWidth, reader.words.length, measurable);
 	}
 
 	function keepCurrentWordInView() {
@@ -142,7 +149,7 @@
 		if (reader.playing || reader.wordIndex !== 0) return;
 		let topmost: { index: number; top: number; left: number } | null = null;
 		for (const word of reader.words) {
-			const box = page.measure(word)[0];
+			const box = page.measure(word, 'text-layer')[0];
 			if (!box) continue;
 			const isHigher =
 				!topmost ||
@@ -156,8 +163,13 @@
 	function wordText(wordIndex: number): string {
 		const word = reader.words[wordIndex];
 		if (!word || !pageText) return '';
-		// A word hyphenated across lines contains "-⏎"; show it as written on one line.
-		return pageText.text.slice(word.start, word.end).replace('-\n', '-');
+		// Show the word as it reads: one line ("-⏎" → "-"), no hidden space, plain letters for
+		// ligatures ("ﬁ" → "fi").
+		return pageText.text
+			.slice(word.start, word.end)
+			.replace('-\n', '-')
+			.replace(/\s+/g, '')
+			.normalize('NFKC');
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
@@ -265,6 +277,18 @@
 		</div>
 
 		<label class="flex items-center gap-2">
+			<span>Box edges</span>
+			<select
+				bind:value={positionSource}
+				class="rounded border border-slate-300 px-1"
+				data-testid="position-source"
+			>
+				<option value="text-layer">A · text layer</option>
+				<option value="glyphs">B · glyph positions</option>
+			</select>
+		</label>
+
+		<label class="flex items-center gap-2">
 			<input type="checkbox" bind:checked={showAllWords} />
 			<span>Show all word boxes</span>
 		</label>
@@ -286,7 +310,8 @@
 
 	{#if pdf && !loadError}
 		<AccuracyPanel
-			report={accuracy}
+			comparison={accuracy}
+			active={positionSource}
 			{wordText}
 			onSelectWord={(wordIndex) => reader.goToWord(wordIndex)}
 		/>
@@ -302,6 +327,7 @@
 					{pdf}
 					{pageNumber}
 					scale={SCALE}
+					{positionSource}
 					sentenceRange={reader.currentSentence}
 					wordRange={reader.currentWord}
 					{outlineRanges}

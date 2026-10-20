@@ -52,6 +52,15 @@ describe('splitWords', () => {
 	});
 });
 
+describe('splitWords with hidden spaces', () => {
+	it('joins the two parts of a word around a space that is not visible on the page', () => {
+		const text = 'Lack of conﬁ rmation and staﬀ members.';
+		const hiddenSpace = { start: 12, end: 13 }; // the space inside "conﬁ rmation"
+		const words = splitWords(text, splitSentences(text), [hiddenSpace]);
+		expect(textsOf(text, words)).toEqual(['Lack', 'of', 'conﬁ rmation', 'and', 'staﬀ', 'members']);
+	});
+});
+
 describe('splitWords with ligatures', () => {
 	// A word ending in a ligature followed by a space is usually two real words ("staﬀ members").
 	// Telling them apart from a hidden space ("conﬁ rmation") needs glyph positions, not text.

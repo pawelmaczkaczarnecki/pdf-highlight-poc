@@ -100,6 +100,7 @@ describe('summarize', () => {
 		expect(report.p95Px).toBe(3);
 		expect(report.within1Px).toBeCloseTo(0.6);
 		expect(report.within2Px).toBeCloseTo(0.8);
+		expect(report.maxPx).toBe(3);
 		expect(report.worst[0]).toEqual({ wordIndex: 4, errorPx: 3 });
 	});
 });

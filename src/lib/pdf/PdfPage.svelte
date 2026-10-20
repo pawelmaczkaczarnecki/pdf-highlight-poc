@@ -1,6 +1,7 @@
 <script lang="ts">
 	import 'pdfjs-dist/web/pdf_viewer.css';
 	import {
+		OPS,
 		TextLayer,
 		type PageViewport,
 		type PDFDocumentProxy,
@@ -9,7 +10,10 @@
 	import type { TextItem } from 'pdfjs-dist/types/src/display/api';
 	import HighlightLayer from '#lib/highlight/HighlightLayer.svelte';
 	import { measureRange, offsetAtPoint } from '#lib/highlight/rects.js';
-	import type { RenderedPage } from './renderedPage.js';
+	import { glyphRefinedBoxes, type GlyphEdge } from '#lib/highlight/glyphEdges.js';
+	import type { Box } from '#lib/highlight/rects.js';
+	import type { PositionSource, RenderedPage } from './renderedPage.js';
+	import { alignGlyphsToText, findHiddenSpaces, positionGlyphs } from './glyphLayout.js';
 	import { buildPageText, type PageText } from '#lib/text/pageText.js';
 	import type { TextRange } from '#lib/text/segment.js';
 
@@ -17,11 +21,12 @@
 		pdf: PDFDocumentProxy;
 		pageNumber: number;
 		scale: number;
+		positionSource: PositionSource;
 		sentenceRange: TextRange | null;
 		wordRange: TextRange | null;
 		/** Ranges drawn as thin outlines, e.g. every word on the page to inspect accuracy. */
 		outlineRanges: TextRange[];
-		onTextReady: (pageText: PageText) => void;
+		onTextReady: (pageText: PageText, hiddenSpaces: TextRange[]) => void;
 		onTextClick: (offset: number) => void;
 		onRendered: (page: RenderedPage) => void;
 	}
@@ -30,6 +35,7 @@
 		pdf,
 		pageNumber,
 		scale,
+		positionSource,
 		sentenceRange,
 		wordRange,
 		outlineRanges,
@@ -46,23 +52,22 @@
 	let totalScaleFactor = $state(1);
 	let pageText = $state<PageText | null>(null);
 	let textDivs: HTMLElement[] = [];
+	/** Approach B: glyph edge of each character of the page text, or null where untrusted. */
+	let glyphEdgeAt: (offset: number) => GlyphEdge | null = () => null;
 	let errorMessage = $state<string | null>(null);
 
-	const sentenceBoxes = $derived(
-		pageText && pageElement && sentenceRange
-			? measureRange(pageText, textDivs, pageElement, sentenceRange)
-			: []
-	);
-	const wordBoxes = $derived(
-		pageText && pageElement && wordRange
-			? measureRange(pageText, textDivs, pageElement, wordRange)
-			: []
-	);
+	const sentenceBoxes = $derived(sentenceRange ? measure(sentenceRange, positionSource) : []);
+	const wordBoxes = $derived(wordRange ? measure(wordRange, positionSource) : []);
+
+	function measure(range: TextRange, source: PositionSource): Box[] {
+		if (!pageText || !pageElement) return [];
+		const textLayerBoxes = measureRange(pageText, textDivs, pageElement, range);
+		if (source === 'text-layer') return textLayerBoxes;
+		return glyphRefinedBoxes(textLayerBoxes, range, pageText.text, glyphEdgeAt);
+	}
 
 	const outlineBoxes = $derived(
-		pageText && pageElement
-			? outlineRanges.flatMap((range) => measureRange(pageText!, textDivs, pageElement!, range))
-			: []
+		pageText && pageElement ? outlineRanges.flatMap((range) => measure(range, positionSource)) : []
 	);
 
 	function handleClick(event: MouseEvent) {
@@ -112,13 +117,42 @@
 		]);
 		if (isCancelled() || !pageText || !pageElement) return;
 
-		const renderedText = pageText;
-		const element = pageElement;
-		onRendered({
-			canvas,
-			cssWidth: size.width,
-			measure: (range) => measureRange(renderedText, textDivs, element, range)
-		});
+		onRendered({ canvas, cssWidth: size.width, measure });
+	}
+
+	/**
+	 * Reads glyph positions from the page's drawing instructions: spaces in the extracted text
+	 * that are not visible on the page (e.g. after a ligature), and each character's left/right
+	 * edge for approach B. Best effort: on any problem, no hidden spaces and B falls back to A.
+	 */
+	async function analyzeGlyphs(
+		page: PDFPageProxy,
+		viewport: PageViewport,
+		text: string
+	): Promise<{ hiddenSpaces: TextRange[]; edgeAt: (offset: number) => GlyphEdge | null }> {
+		const none = { hiddenSpaces: [], edgeAt: () => null };
+		try {
+			const operatorList = await page.getOperatorList();
+			const glyphs = positionGlyphs(operatorList, OPS, (fontName) => {
+				const font = page.commonObjs.get(fontName);
+				return font?.isType3Font ? undefined : font?.fontMatrix?.[0];
+			});
+			const glyphAt = alignGlyphsToText(text, glyphs);
+			if (!glyphAt) return none;
+
+			const edges = glyphs.map((glyph): GlyphEdge | null => {
+				if (!glyph.supported) return null;
+				const [left, baseline] = viewport.convertToViewportPoint(glyph.left, glyph.baseline);
+				const [right] = viewport.convertToViewportPoint(glyph.right, glyph.baseline);
+				return { left, right, baseline };
+			});
+			return {
+				hiddenSpaces: findHiddenSpaces(text, glyphs),
+				edgeAt: (offset) => (glyphAt[offset] >= 0 ? edges[glyphAt[offset]] : null)
+			};
+		} catch {
+			return none;
+		}
 	}
 
 	function renderCanvas(
@@ -167,8 +201,12 @@
 		// PageText map onto spans by index.
 		const items = textContent.items.filter((item): item is TextItem => 'str' in item);
 		textDivs = textLayer.textDivs;
-		pageText = buildPageText(items);
-		onTextReady(pageText);
+		const builtText = buildPageText(items);
+		const { hiddenSpaces, edgeAt } = await analyzeGlyphs(page, viewport, builtText.text);
+		if (isCancelled()) return;
+		glyphEdgeAt = edgeAt;
+		pageText = builtText;
+		onTextReady(builtText, hiddenSpaces);
 	}
 </script>
 

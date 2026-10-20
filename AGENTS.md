@@ -26,7 +26,7 @@ word highlights (text-to-speech style) in a custom overlay layer above the nativ
 - Every change comes with a test of behaviour (execute the operation, assert the result).
   No tests that only inspect source text.
 - Small commits; message says what and why.
-- Never commit secrets or `.env`. Never put the hiring company's name in the repository.
+- Never commit secrets or `.env`.
 - Identifiers, comments, UI text, commits and docs in English.
 - Readable over clever: domain names, short single-purpose functions, early returns, no `any`,
   comments only for the "why". Run `npm run format` before every commit.

@@ -1,11 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { clickWordInSpan } from './helpers';
 
-// The same behaviours that A guarantees, re-checked with B (glyph positions) switched on.
+// Behaviours that depend on box geometry, checked with glyph-position boxes (the only mode).
 test.beforeEach(async ({ page }) => {
 	await page.goto('/');
 	await expect(page.getByTestId('word-box').first()).toBeInViewport();
-	await page.getByTestId('position-source').selectOption('glyphs');
 });
 
 test('B: a click on the right half of a last letter selects that word', async ({ page }) => {

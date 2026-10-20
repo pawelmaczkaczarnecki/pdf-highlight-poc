@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { buildPageText } from '#lib/text/pageText.js';
 import { Reader } from './reader.svelte.js';
 
 describe('Reader playback timing', () => {
@@ -7,7 +8,16 @@ describe('Reader playback timing', () => {
 
 	it('applies a new speed to the step already scheduled, not only to later ones', () => {
 		const reader = new Reader();
-		reader.loadText('one two three four five six.');
+		reader.loadText(
+			buildPageText([
+				{
+					str: 'one two three four five six.',
+					hasEOL: true,
+					transform: [10, 0, 0, 10, 0, 0],
+					height: 10
+				}
+			])
+		);
 		reader.wordsPerMinute = 120; // 500 ms per word
 		reader.play();
 

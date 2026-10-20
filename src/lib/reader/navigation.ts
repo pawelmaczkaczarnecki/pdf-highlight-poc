@@ -25,8 +25,17 @@ export function previousSentenceStart(words: Word[], wordIndex: number): number 
 	return firstWordOf(words, previousWord.sentenceIndex) ?? sentenceStart;
 }
 
-/** The word at a character offset, or the next word after it (e.g. a click on a space). */
+/**
+ * The word at a character offset, or the closest word after it in the text (e.g. a click on a
+ * space). Words are in reading order, which is not always text order, so all are checked.
+ */
 export function wordAtOffset(words: Word[], offset: number): number | null {
-	const index = words.findIndex((word) => offset < word.end);
-	return index === -1 ? null : index;
+	const containing = words.findIndex((word) => offset >= word.start && offset < word.end);
+	if (containing !== -1) return containing;
+
+	let next: number | null = null;
+	words.forEach((word, index) => {
+		if (word.start >= offset && (next === null || word.start < words[next].start)) next = index;
+	});
+	return next;
 }

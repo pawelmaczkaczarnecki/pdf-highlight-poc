@@ -3,7 +3,7 @@
 	import type { PDFDocumentProxy } from 'pdfjs-dist';
 	import { loadPdf, type PdfSource } from '#lib/pdf/pdfjs.js';
 	import PdfPage from '#lib/pdf/PdfPage.svelte';
-	import type { PositionSource, RenderedPage } from '#lib/pdf/renderedPage.js';
+	import type { RenderedPage } from '#lib/pdf/renderedPage.js';
 	import AccuracyPanel from '#lib/highlight/AccuracyPanel.svelte';
 	import {
 		compareAccuracy,
@@ -31,8 +31,6 @@
 	let showAllWords = $state(false);
 	let pageText = $state<PageText | null>(null);
 	let accuracy = $state<AccuracyComparison | null>(null);
-	// B is the default: measured as more accurate than A on two differently produced PDFs.
-	let positionSource = $state<PositionSource>('glyphs');
 	let toolbar: HTMLElement;
 	let documentArea: HTMLElement;
 
@@ -104,12 +102,11 @@
 	function handleTextReady(text: PageText, hiddenSpaces: TextRange[]) {
 		pageText = text;
 		accuracy = null;
-		reader.loadText(text.text, hiddenSpaces);
+		reader.loadText(text, hiddenSpaces);
 	}
 
 	function handleRendered(page: RenderedPage) {
 		if (!pageText) return;
-		startAtTopmostWord(page);
 		const text = pageText.text;
 		const measurable = reader.words
 			.filter((word) => isSpaceSeparated(text, word))
@@ -139,25 +136,6 @@
 		} else if (box.right > area.right - FOLLOW_MARGIN_PX) {
 			documentArea.scrollLeft += box.right - (area.right - FOLLOW_MARGIN_PX);
 		}
-	}
-
-	/**
-	 * PDF content order often starts with a footer or a margin note, so the first word can be
-	 * far down the page. Start where the eye starts instead: the highest word on the page.
-	 */
-	function startAtTopmostWord(page: RenderedPage) {
-		if (reader.playing || reader.wordIndex !== 0) return;
-		let topmost: { index: number; top: number; left: number } | null = null;
-		for (const word of reader.words) {
-			const box = page.measure(word, 'text-layer')[0];
-			if (!box) continue;
-			const isHigher =
-				!topmost ||
-				box.top < topmost.top - 1 ||
-				(box.top <= topmost.top + 1 && box.left < topmost.left);
-			if (isHigher) topmost = { index: word.index, top: box.top, left: box.left };
-		}
-		if (topmost) reader.goToWord(topmost.index);
 	}
 
 	function wordText(wordIndex: number): string {
@@ -277,18 +255,6 @@
 		</div>
 
 		<label class="flex items-center gap-2">
-			<span>Box edges</span>
-			<select
-				bind:value={positionSource}
-				class="rounded border border-slate-300 px-1"
-				data-testid="position-source"
-			>
-				<option value="text-layer">A · text layer</option>
-				<option value="glyphs">B · glyph positions</option>
-			</select>
-		</label>
-
-		<label class="flex items-center gap-2">
 			<input type="checkbox" bind:checked={showAllWords} />
 			<span>Show all word boxes</span>
 		</label>
@@ -311,7 +277,6 @@
 	{#if pdf && !loadError}
 		<AccuracyPanel
 			comparison={accuracy}
-			active={positionSource}
 			{wordText}
 			onSelectWord={(wordIndex) => reader.goToWord(wordIndex)}
 		/>
@@ -327,7 +292,6 @@
 					{pdf}
 					{pageNumber}
 					scale={SCALE}
-					{positionSource}
 					sentenceRange={reader.currentSentence}
 					wordRange={reader.currentWord}
 					{outlineRanges}

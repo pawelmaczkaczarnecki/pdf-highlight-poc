@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
+	import { onDestroy, tick } from 'svelte';
 	import type { PDFDocumentProxy } from 'pdfjs-dist';
 	import { loadPdf, type PdfSource } from '#lib/pdf/pdfjs.js';
 	import PdfPage from '#lib/pdf/PdfPage.svelte';
@@ -16,6 +16,8 @@
 	const SAMPLE_PDF_URL = '/sample.pdf';
 	const SCALE = 1.5;
 	const SPEEDS = [120, 180, 240, 320];
+	/** Space kept between the current word and the edges of the visible area when following it. */
+	const FOLLOW_MARGIN_PX = 24;
 	const CONTROL =
 		'rounded border border-slate-300 px-2 py-1 hover:bg-slate-100 disabled:opacity-40';
 
@@ -28,6 +30,8 @@
 	let showAllWords = $state(false);
 	let pageText = $state<PageText | null>(null);
 	let accuracy = $state<AccuracyReport | null>(null);
+	let toolbar: HTMLElement;
+	let documentArea: HTMLElement;
 
 	const outlineRanges = $derived(showAllWords ? reader.words : []);
 	/**
@@ -43,6 +47,13 @@
 
 	// Only the latest "open" counts: an older file that finishes loading later is thrown away.
 	let latestOpenRequest = 0;
+
+	// Follow the reading position like a TTS reader: when the current word moves out of the visible
+	// area (playback, keys, a click in the accuracy report), scroll just enough to bring it back.
+	$effect(() => {
+		if (!reader.currentWord) return;
+		tick().then(keepCurrentWordInView);
+	});
 
 	openDocument('sample.pdf', async () => ({ url: SAMPLE_PDF_URL }));
 	onDestroy(() => reader.pause());
@@ -95,11 +106,51 @@
 
 	function handleRendered(page: RenderedPage) {
 		if (!pageText) return;
+		startAtTopmostWord(page);
 		const text = pageText.text;
 		const measurable = reader.words
 			.filter((word) => isSpaceSeparated(text, word))
 			.map((word) => ({ wordIndex: word.index, boxes: page.measure(word) }));
 		accuracy = measureAccuracy(page.canvas, page.cssWidth, reader.words.length, measurable);
+	}
+
+	function keepCurrentWordInView() {
+		const word = documentArea?.querySelector('[data-testid="word-box"]');
+		if (!word) return;
+		const box = word.getBoundingClientRect();
+
+		// The toolbar is sticky and its height changes with the screen width.
+		const visibleTop = toolbar.getBoundingClientRect().bottom + FOLLOW_MARGIN_PX;
+		const visibleBottom = window.innerHeight - FOLLOW_MARGIN_PX;
+		if (box.top < visibleTop) window.scrollBy({ top: box.top - visibleTop });
+		else if (box.bottom > visibleBottom) window.scrollBy({ top: box.bottom - visibleBottom });
+
+		// On narrow screens the document area scrolls sideways on its own.
+		const area = documentArea.getBoundingClientRect();
+		if (box.left < area.left + FOLLOW_MARGIN_PX) {
+			documentArea.scrollLeft -= area.left + FOLLOW_MARGIN_PX - box.left;
+		} else if (box.right > area.right - FOLLOW_MARGIN_PX) {
+			documentArea.scrollLeft += box.right - (area.right - FOLLOW_MARGIN_PX);
+		}
+	}
+
+	/**
+	 * PDF content order often starts with a footer or a margin note, so the first word can be
+	 * far down the page. Start where the eye starts instead: the highest word on the page.
+	 */
+	function startAtTopmostWord(page: RenderedPage) {
+		if (reader.playing || reader.wordIndex !== 0) return;
+		let topmost: { index: number; top: number; left: number } | null = null;
+		for (const word of reader.words) {
+			const box = page.measure(word)[0];
+			if (!box) continue;
+			const isHigher =
+				!topmost ||
+				box.top < topmost.top - 1 ||
+				(box.top <= topmost.top + 1 && box.left < topmost.left);
+			if (isHigher) topmost = { index: word.index, top: box.top, left: box.left };
+		}
+		if (topmost) reader.goToWord(topmost.index);
 	}
 
 	function wordText(wordIndex: number): string {
@@ -132,6 +183,7 @@
 
 <div class="min-h-screen bg-slate-100 text-slate-900">
 	<header
+		bind:this={toolbar}
 		class="sticky top-0 z-10 flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-slate-200 bg-white px-4 py-2 text-sm shadow-sm"
 	>
 		<label class="flex items-center gap-2">
@@ -241,7 +293,7 @@
 	{/if}
 
 	<!-- Only the document scrolls sideways on narrow screens; the controls keep the screen width. -->
-	<main class="overflow-x-auto p-4">
+	<main bind:this={documentArea} class="overflow-x-auto p-4">
 		<div class="mx-auto w-fit">
 			{#if loadError}
 				<p role="alert" class="text-red-700">{loadError}</p>

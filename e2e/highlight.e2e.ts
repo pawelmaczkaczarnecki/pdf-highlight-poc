@@ -82,6 +82,8 @@ test('highlights the current sentence and word on the rendered page', async ({ p
 	await page.goto('/');
 
 	await expect(page.getByTestId('word-box')).toHaveCount(1);
+	// "Refutation and controversy … research [4,5]." spans several lines: one band per line.
+	await clickWordInSpan(page, 'Refutation and', 'Refutation');
 	await expect(page.getByTestId('sentence-box').first()).toBeVisible();
 	expect(await page.getByTestId('sentence-box').count()).toBeGreaterThan(1);
 });

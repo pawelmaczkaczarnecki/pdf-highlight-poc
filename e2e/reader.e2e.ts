@@ -55,7 +55,8 @@ test('changing the page rebuilds the text and highlights for the new page', asyn
 	await page.getByRole('button', { name: 'Next page' }).click();
 	await expect(page.getByTestId('page-indicator')).toHaveText('Page 2 / 6');
 	await expect(page.getByTestId('word-box')).toHaveCount(1);
-	await expect(page.getByTestId('reading-status')).toContainText('word 1 of');
+	await expect(page.getByTestId('word-box')).toBeInViewport();
+	await expect(page.getByTestId('reading-status')).toContainText(/word \d+ of \d+/);
 });
 
 test('rapid page changes end on the last requested page without errors', async ({ page }) => {

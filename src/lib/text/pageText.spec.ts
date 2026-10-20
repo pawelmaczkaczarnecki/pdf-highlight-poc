@@ -67,6 +67,15 @@ describe('isBlockBreak', () => {
 });
 
 describe('buildPageText with blocks', () => {
+	it('keeps a sentence together across a footnote marker at the end of a line', () => {
+		const pageText = buildPageText([
+			item('This result', 50, 500),
+			item('1', 104, 503, 6, true), // raised footnote marker ends the line
+			item('is statistically significant.', 50, 488, 10, true)
+		]);
+		expect(pageText.text).not.toContain(BLOCK_BREAK);
+	});
+
 	it('puts a block break between a title and the body', () => {
 		const pageText = buildPageText([
 			item('A Title', 50, 700, 24, true),

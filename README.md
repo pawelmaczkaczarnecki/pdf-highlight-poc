@@ -120,7 +120,7 @@ on Linux, and the tests fail if boxes are shifted or shrunk by 3 px.
 
 ## History of this repository
 
-Before submission, I reorganized the development history into seven thematic pull requests to
+Before publishing, I reorganized the development history into seven thematic pull requests to
 make the implementation easier to review. Their creation dates reflect that cleanup. The
 development iterations, changed decisions, and issues found during review are documented in
 [docs/DECISIONS.md](docs/DECISIONS.md) ("How decisions changed along the way") and

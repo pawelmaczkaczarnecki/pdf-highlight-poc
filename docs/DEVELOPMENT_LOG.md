@@ -15,7 +15,7 @@
 ## Progress
 
 Done (during development each change went through a pull request describing how it was
-verified; before submission the history was reorganized into seven thematic pull requests):
+verified; before publishing the history was reorganized into seven thematic pull requests):
 
 - Skeleton: SvelteKit + TS + Tailwind + Vitest + Playwright + adapter-static, pdfjs-dist 6.4.299.
 - Vertical slice: sample PDF → canvas + text layer + overlay → sentence and word highlighted.
